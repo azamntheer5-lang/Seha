@@ -1,0 +1,1554 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>صحة - الاستعلام عن الإجازات المرضية</title>
+  <!-- Google Fonts: IBM Plex Sans Arabic & Cairo -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ==========================================================================
+       1. المتغيرات اللونية والخطوط المستخرجة من Computed Styles لمنصة صحة
+       ========================================================================== */
+    :root {
+      --app-header-height: 94px;
+      --primary-green: #1B8354;        /* rgb(27, 131, 84) - لون زر الاستعلام والتبويب النشط */
+      --primary-green-hover: #146641;
+      --hero-bg: #F5FBF7;              /* خلفية ترويسة المسار والهيرو */
+      --card-bg: #FFFFFF;              /* rgb(255, 255, 255) - خلفية بطاقة الاستعلام */
+      --card-border: #E5E7EB;          /* rgb(229, 231, 235) - إطار البطاقة */
+      --input-border: #9DA4AE;         /* rgb(157, 164, 174) - إطار حقول الإدخال */
+      --input-focus: #1B8354;
+      --text-primary: #212529;         /* rgb(33, 37, 41) - النص الأساسي */
+      --text-hero-title: #161616;      /* rgb(22, 22, 22) - عنوان الهيرو */
+      --text-muted: #6C737F;
+      --footer-bg: #F3F4F6;            /* rgb(243, 244, 246) - خلفية الفوتر */
+      --footer-heading: #55627A;       /* rgb(85, 98, 122) - عناوين الفوتر */
+      --footer-divider: #D2D6DB;       /* rgb(210, 214, 219) - الخط الفاصل بالفوتر */
+      --brand-blue: #1E40AF;
+      --accessibility-blue: #005A9C;
+      --font-main: "IBM Plex Sans Arabic", "Cairo", sans-serif;
+      --font-nav-footer: "Cairo", "IBM Plex Sans Arabic", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-main);
+      color: var(--text-primary);
+      background-color: #FAFAFA;
+      padding-top: var(--app-header-height);
+      direction: rtl;
+      text-align: right;
+      line-height: 1.5;
+      transition: font-size 0.2s ease, filter 0.2s ease;
+    }
+
+    body.a11y-large-text {
+      font-size: 112%;
+    }
+
+    body.a11y-high-contrast {
+      filter: contrast(1.25);
+    }
+
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    ul, ol {
+      list-style: none;
+    }
+
+    /* ==========================================================================
+       2. الشريط العلوي (Header / Navbar)
+       ========================================================================== */
+    .app-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 99;
+      height: var(--app-header-height);
+      width: 100%;
+      background-color: #FFFFFF;
+      border-bottom: 1px solid #F0F2F5;
+      font-family: var(--font-nav-footer);
+      display: flex;
+      align-items: center;
+    }
+
+    .header-inner {
+      width: 100%;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* الشعار في أقصى اليمين */
+    .navbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+    }
+
+    .logo-svg {
+      width: 120px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+    }
+
+    /* روابط سطح المكتب */
+    .desktop-nav {
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+
+    @media (min-width: 992px) {
+      .desktop-nav {
+        display: flex;
+      }
+    }
+
+    .desktop-nav .nav-link {
+      padding: 8px 16px;
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text-primary);
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .desktop-nav .nav-link:hover {
+      color: var(--primary-green);
+      background-color: rgba(27, 131, 84, 0.06);
+    }
+
+    .desktop-nav .nav-link.active {
+      background-color: var(--primary-green);
+      color: #FFFFFF;
+      font-weight: 700;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* زر القائمة الجانبية (Hamburger Button) - أقصى اليسار */
+    .hamburger-btn {
+      width: 40px;
+      height: 40px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      transition: background-color 0.2s;
+    }
+
+    .hamburger-btn:hover {
+      background-color: #F3F4F6;
+    }
+
+    .hamburger-btn svg {
+      width: 24px;
+      height: 24px;
+      stroke: #1E3A8A;
+      stroke-width: 2.2;
+    }
+
+    /* زر فحص الأكواد التفاعلي */
+    .code-toggle-btn {
+      background-color: #EFF6FF;
+      color: #1D4ED8;
+      border: 1px solid #BFDBFE;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-family: var(--font-main);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .code-toggle-btn:hover {
+      background-color: #DBEAFE;
+    }
+
+    /* ==========================================================================
+       3. القائمة الجانبية المنبثقة (Slide-out Navigation Drawer)
+       ========================================================================== */
+    .drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(16, 24, 40, 0.45);
+      z-index: 199;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+
+    .drawer-backdrop.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .navbar-collapse-drawer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 320px;
+      max-width: 88vw;
+      background-color: #FFFFFF;
+      z-index: 200;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      font-family: var(--font-nav-footer);
+      transform: translateX(-100%);
+      transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+    }
+
+    .navbar-collapse-drawer.show {
+      transform: translateX(0);
+    }
+
+    .drawer-top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #E5E7EB;
+    }
+
+    /* زر تسجيل الدخول داخل القائمة الجانبية */
+    .login-drawer-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background-color: #F3F4F6;
+      color: var(--text-primary);
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      border: 1px solid #E5E7EB;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .login-drawer-btn:hover {
+      background-color: #E5E7EB;
+    }
+
+    /* زر إغلاق القائمة الجانبية (X) */
+    .close-drawer-btn {
+      width: 32px;
+      height: 32px;
+      background: transparent;
+      border: none;
+      color: #1E3A8A;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+    }
+
+    .close-drawer-btn:hover {
+      background-color: #F3F4F6;
+    }
+
+    .header-section--tabs {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 20px;
+      flex: 1;
+    }
+
+    .header-section--tabs .nav-link {
+      padding: 12px 14px;
+      font-size: 16px;
+      font-weight: 400;
+      color: var(--text-primary);
+      border-radius: 4px;
+      display: block;
+      transition: background-color 0.2s;
+    }
+
+    .header-section--tabs .nav-link:hover {
+      background-color: #F3F4F6;
+    }
+
+    .header-section--tabs .nav-link.active {
+      background-color: var(--primary-green);
+      color: #FFFFFF;
+      font-weight: 700;
+    }
+
+    .drawer-footer-auth {
+      padding-top: 16px;
+      border-top: 1px solid #E5E7EB;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .create-account-link {
+      text-align: center;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary-green);
+      padding: 8px;
+      border: 1px solid var(--primary-green);
+      border-radius: 4px;
+    }
+
+    /* ==========================================================================
+       4. شريط المسار والترويسة (Hero / Breadcrumb Banner)
+       ========================================================================== */
+    .hero-banner-wrapper {
+      background-color: var(--hero-bg);
+      border-bottom: 1px solid #E8F3EC;
+      padding: 24px 24px 36px;
+    }
+
+    .page-content-breadcrumb-row {
+      max-width: 1140px;
+      margin: 0 auto 20px;
+    }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 14px;
+      color: #4B5563;
+    }
+
+    .breadcrumb-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .breadcrumb-item + .breadcrumb-item::before {
+      content: "›";
+      color: #9CA3AF;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .breadcrumb-item a {
+      color: #4B5563;
+      transition: color 0.15s;
+    }
+
+    .breadcrumb-item a:hover {
+      color: var(--primary-green);
+    }
+
+    .breadcrumb-item.active {
+      color: var(--primary-green);
+      font-weight: 600;
+    }
+
+    .sl-inquiry__hero {
+      max-width: 1140px;
+      margin: 0 auto;
+    }
+
+    .sl-inquiry__hero-inner {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 693px;
+    }
+
+    .sl-inquiry__hero-inner h1 {
+      font-size: 28px;
+      font-weight: 600;
+      line-height: 35px;
+      letter-spacing: -0.5px;
+      color: var(--text-hero-title);
+    }
+
+    .sl-inquiry__hero-inner p {
+      font-size: 16px;
+      font-weight: 400;
+      line-height: 24px;
+      color: var(--text-primary);
+    }
+
+    /* ==========================================================================
+       5. بطاقة نموذج الاستعلام (Form Card - .sl-inquiry__card)
+       ========================================================================== */
+    .sl-inquiry-main {
+      padding: 48px 16px 72px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #FFFFFF;
+    }
+
+    .sl-inquiry__card {
+      display: flex;
+      flex-direction: column;
+      row-gap: 16px;
+      width: 100%;
+      max-width: 640px;
+      padding: 24px;
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      box-shadow: rgba(16, 24, 40, 0.06) 0px 4px 8px 0px,
+                  rgba(16, 24, 40, 0.1) 0px 2px 4px 0px;
+    }
+
+    .sl-inquiry__card-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-hero-title);
+      margin-bottom: 4px;
+    }
+
+    /* حقول الإدخال */
+    .sl-field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sl-field label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #374151;
+    }
+
+    .sl-input {
+      width: 100%;
+      height: 40px;
+      padding: 8px 12px;
+      font-family: var(--font-main);
+      font-size: 16px;
+      color: var(--text-primary);
+      background-color: #FFFFFF;
+      border: 1px solid var(--input-border);
+      border-radius: 4px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .sl-input::placeholder {
+      color: #9CA3AF;
+      font-size: 14px;
+    }
+
+    .sl-input:focus {
+      border-color: var(--primary-green);
+      box-shadow: 0 0 0 3px rgba(27, 131, 84, 0.14);
+    }
+
+    .sl-field-error {
+      font-size: 13px;
+      color: #DC2626;
+      display: none;
+    }
+
+    .sl-field.has-error .sl-input {
+      border-color: #DC2626;
+    }
+
+    .sl-field.has-error .sl-field-error {
+      display: block;
+    }
+
+    /* حاوية الأزرار وزر الاستعلام الرئيسي */
+    .sl-actions {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .sl-btn {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      height: 40px;
+      line-height: 24px;
+      font-family: var(--font-main);
+      font-size: 16px;
+      font-weight: 500;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s, border-color 0.2s, transform 0.1s;
+    }
+
+    .sl-btn:active {
+      transform: scale(0.995);
+    }
+
+    .sl-btn--primary {
+      color: #FFFFFF;
+      background-color: var(--primary-green);
+      border: 1px solid var(--primary-green);
+    }
+
+    .sl-btn--primary:hover {
+      background-color: var(--primary-green-hover);
+      border-color: var(--primary-green-hover);
+    }
+
+    /* نتيجة الاستعلام التجريبية داخل البطاقة */
+    .sl-result-box {
+      display: none;
+      margin-top: 12px;
+      padding: 16px;
+      border-radius: 8px;
+      background-color: #F5FBF7;
+      border: 1px solid #A7F3D0;
+      font-size: 14px;
+    }
+
+    .sl-result-box.show {
+      display: block;
+    }
+
+    .sl-result-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #D1FAE5;
+      font-weight: 700;
+      color: var(--primary-green);
+    }
+
+    .sl-result-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+    }
+
+    .sl-result-item span {
+      display: block;
+      font-size: 12px;
+      color: #6B7280;
+    }
+
+    .sl-result-item strong {
+      color: #111827;
+      font-size: 14px;
+    }
+
+    /* ==========================================================================
+       6. الشريط السفلي (Footer)
+       ========================================================================== */
+    .footer-container {
+      background-color: var(--footer-bg);
+      color: var(--footer-heading);
+      font-family: var(--font-nav-footer);
+      font-size: 16px;
+      padding: 56px 24px 32px;
+      border-top: 1px solid #E5E7EB;
+    }
+
+    .footer {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 40px;
+    }
+
+    .footer-columns {
+      display: grid;
+      grid-template-columns: repeat(1, 1fr);
+      gap: 32px;
+    }
+
+    @media (min-width: 640px) {
+      .footer-columns {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (min-width: 992px) {
+      .footer-columns {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    .footer .section h3.heading {
+      color: var(--footer-heading);
+      font-family: var(--font-nav-footer);
+      font-size: 22px;
+      font-weight: 700;
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--footer-divider);
+    }
+
+    .links-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .links-wrapper li a,
+    .contact-list li {
+      color: var(--footer-heading);
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: color 0.2s;
+    }
+
+    .links-wrapper li a:hover {
+      color: var(--primary-green);
+    }
+
+    .contact-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .contact-icon {
+      width: 18px;
+      height: 18px;
+      color: var(--primary-green);
+      flex-shrink: 0;
+    }
+
+    /* أزرار التواصل الاجتماعي والإتاحة في الفوتر */
+    .social-buttons-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .footer-icon-btn {
+      width: 40px;
+      height: 40px;
+      background-color: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #374151;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .footer-icon-btn:hover {
+      border-color: var(--primary-green);
+      color: var(--primary-green);
+      transform: translateY(-2px);
+    }
+
+    /* الشريط الختامي للفوتر */
+    .footer-bottom {
+      padding-top: 28px;
+      border-top: 1px solid var(--footer-divider);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .partner-logos {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .partner-badge {
+      background-color: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #1F2937;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .footer-legal {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 14px;
+      color: var(--footer-heading);
+    }
+
+    .policy-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 4px;
+    }
+
+    .policy-links a {
+      text-decoration: underline;
+      font-size: 13px;
+    }
+
+    .policy-links a:hover {
+      color: var(--primary-green);
+    }
+
+    /* ==========================================================================
+       7. زر الإتاحة والوصول العائم (#userwayAccessibilityIcon)
+       ========================================================================== */
+    #userwayAccessibilityIcon {
+      position: fixed;
+      bottom: 14px;
+      left: 14px;
+      z-index: 999999;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background-color: var(--accessibility-blue);
+      color: #FFFFFF;
+      border: 2px solid #FFFFFF;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.2s, background-color 0.2s;
+    }
+
+    #userwayAccessibilityIcon:hover {
+      transform: scale(1.07);
+      background-color: #004477;
+    }
+
+    /* قائمة خيارات الإتاحة المنبثقة */
+    .a11y-popover {
+      position: fixed;
+      bottom: 68px;
+      left: 14px;
+      z-index: 999999;
+      width: 240px;
+      background: #FFFFFF;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .a11y-popover.show {
+      display: flex;
+    }
+
+    .a11y-popover h4 {
+      font-size: 14px;
+      color: #111827;
+      border-bottom: 1px solid #F3F4F6;
+      padding-bottom: 6px;
+    }
+
+    .a11y-option-btn {
+      width: 100%;
+      padding: 8px 10px;
+      font-family: var(--font-main);
+      font-size: 13px;
+      text-align: right;
+      background: #F9FAFB;
+      border: 1px solid #E5E7EB;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .a11y-option-btn.active {
+      background: #EFF6FF;
+      border-color: #3B82F6;
+      color: #1D4ED8;
+      font-weight: 600;
+    }
+
+    /* ==========================================================================
+       8. نافذة عارض ومستخرج الأكواد (Code Inspector Modal)
+       ========================================================================== */
+    .code-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.65);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .code-modal-backdrop.show {
+      display: flex;
+    }
+
+    .code-modal {
+      background: #0F172A;
+      color: #F8FAFC;
+      width: 100%;
+      max-width: 900px;
+      max-height: 85vh;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    }
+
+    .code-modal-header {
+      padding: 14px 20px;
+      background: #1E293B;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .code-modal-tabs {
+      display: flex;
+      gap: 8px;
+      padding: 10px 20px;
+      background: #1E293B;
+      border-bottom: 1px solid #334155;
+      overflow-x: auto;
+    }
+
+    .code-tab-btn {
+      background: #0F172A;
+      color: #94A3B8;
+      border: 1px solid #334155;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-family: var(--font-main);
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .code-tab-btn.active {
+      background: var(--primary-green);
+      color: #FFFFFF;
+      border-color: var(--primary-green);
+    }
+
+    .code-modal-body {
+      padding: 16px 20px;
+      overflow-y: auto;
+      direction: ltr;
+      text-align: left;
+      font-family: monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      background: #0F172A;
+      flex: 1;
+    }
+
+    .code-modal-body pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #E2E8F0;
+    }
+
+    .copy-code-btn {
+      background: #3B82F6;
+      color: #FFFFFF;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-family: var(--font-main);
+      font-size: 13px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== 1. الشريط العلوي (Header) ==================== -->
+  <header class="app-header">
+    <div class="header-inner">
+      <!-- الشعار جهة اليمين -->
+      <a class="navbar-brand" href="#/" id="brandLogoLink" title="منصة صحة">
+        <div class="logo-svg">
+          <svg width="120" height="46" viewBox="0 0 150 54" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- أيقونة الشعار الهندسية -->
+            <path d="M128 12L142 26L128 40L114 26L128 12Z" fill="#0EA5E9" fill-opacity="0.85"/>
+            <path d="M118 16L130 28L118 40L106 28L118 16Z" fill="#1E3A8A" fill-opacity="0.9"/>
+            <!-- نص صحة -->
+            <text x="52" y="31" fill="#1E293B" font-family="Cairo, sans-serif" font-weight="700" font-size="24">صحة</text>
+            <text x="48" y="45" fill="#64748B" font-family="Cairo, sans-serif" font-weight="600" font-size="10">Seha By Lean</text>
+          </svg>
+        </div>
+      </a>
+
+      <!-- روابط التنقل لسطح المكتب -->
+      <nav class="desktop-nav" aria-label="التنقل الرئيسي">
+        <a class="nav-link" href="#/" data-nav="home">الرئيسية</a>
+        <a class="nav-link" href="#/cms/services" data-nav="services">الخدمات</a>
+        <a class="nav-link" href="#/seha-plus" data-nav="seha-plus">صحة بلس</a>
+        <a class="nav-link active" href="#/inquiries" data-nav="inquiries">الاستعلامات</a>
+        <a class="nav-link" href="#/faq" data-nav="faq">الأسئلة الشائعة</a>
+        <a class="nav-link" href="#/ContactUs" data-nav="contact">تواصل معنا</a>
+      </nav>
+
+      <!-- أزرار اليسار: زر فحص الأكواد + زر الهامبرغر -->
+      <div class="header-actions">
+        <button type="button" class="code-toggle-btn" id="openCodeModalBtn">
+          <span>&lt;/&gt;</span>
+          <span>عرض ونسخ الأكواد</span>
+        </button>
+
+        <button type="button" class="hamburger-btn" id="openDrawerBtn" aria-label="فتح القائمة الجانبية">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round">
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== 2. القائمة الجانبية المنبثقة (Drawer) ==================== -->
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+  <aside class="navbar-collapse-drawer" id="sideDrawer" aria-label="القائمة الجانبية">
+    <div>
+      <div class="drawer-top-bar">
+        <!-- زر تسجيل دخول أعلى يمين القائمة -->
+        <button type="button" class="login-drawer-btn" id="drawerLoginBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <span>تسجيل دخول</span>
+        </button>
+
+        <!-- زر إغلاق القائمة (X) أعلى يسار القائمة -->
+        <button type="button" class="close-drawer-btn" id="closeDrawerBtn" aria-label="إغلاق القائمة">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- روابط القائمة الجانبية -->
+      <div class="header-section header-section--tabs navbar-nav">
+        <a class="link nav-link" href="#/" data-drawer-link="الرئيسية">الرئيسية</a>
+        <a class="link nav-link" href="#/cms/services" data-drawer-link="الخدمات">الخدمات</a>
+        <a class="link nav-link" href="#/seha-plus" data-drawer-link="صحة بلس">صحة بلس</a>
+        <a class="link nav-link active" href="#/inquiries" data-drawer-link="الاستعلامات">الاستعلامات</a>
+        <a class="link nav-link" href="#/faq" data-drawer-link="الأسئلة الشائعة">الأسئلة الشائعة</a>
+        <a class="link nav-link" href="#/ContactUs" data-drawer-link="تواصل معنا">تواصل معنا</a>
+      </div>
+    </div>
+
+    <div class="drawer-footer-auth">
+      <a href="#/register" class="create-account-link" id="drawerRegisterLink">إنشاء حساب جديد</a>
+    </div>
+  </aside>
+
+  <!-- ==================== 3. شريط المسار والترويسة (Hero Banner) ==================== -->
+  <div class="hero-banner-wrapper">
+    <div class="page-content-breadcrumb-row">
+      <div class="page-content-breadcrumb-row__inner">
+        <div class="warp-breadcrumb" data-testid="breadcrumb">
+          <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+              <li class="breadcrumb-item"><a href="#/">الرئيسية</a></li>
+              <li class="breadcrumb-item"><a href="#/inquiries">الاستعلامات</a></li>
+              <li class="breadcrumb-item active" aria-current="page">الإجازات المرضية</li>
+            </ol>
+          </nav>
+        </div>
+      </div>
+    </div>
+
+    <div class="sl-inquiry" dir="rtl">
+      <section class="sl-inquiry__hero">
+        <div class="sl-inquiry__hero-inner">
+          <h1>الإجازات المرضية</h1>
+          <p>خدمة الاستعلام عن الإجازات المرضية تتيح لك الاستعلام عن حالة طلبك للإجازة ويمكنك طباعتها عن طريق تطبيق صحتي</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ==================== 4. بطاقة نموذج الاستعلام (Main Form Card) ==================== -->
+  <main class="sl-inquiry-main">
+    <form class="sl-inquiry__card" id="slInquiryForm" novalidate>
+      <h2 class="sl-inquiry__card-title">الاستعلام عن إجازة مرضية</h2>
+
+      <!-- الحقل الأول: رمز الخدمة -->
+      <div class="sl-field" id="serialFieldGroup">
+        <label for="sl-serial">رمز الخدمة</label>
+        <input
+          id="sl-serial"
+          class="sl-input"
+          type="text"
+          maxlength="20"
+          placeholder="أدخل رمز الخدمة"
+          autocomplete="off"
+        >
+        <span class="sl-field-error" id="serialError">يرجى إدخال رمز الخدمة بشكل صحيح (مثال: GSL-2026-88412).</span>
+      </div>
+
+      <!-- الحقل الثاني: رقم الهوية / الإقامة -->
+      <div class="sl-field" id="identityFieldGroup">
+        <label for="sl-identity">رقم الهوية / الإقامة</label>
+        <input
+          id="sl-identity"
+          class="sl-input"
+          type="text"
+          maxlength="10"
+          placeholder="أدخل رقم الهوية / الإقامة"
+          autocomplete="off"
+        >
+        <span class="sl-field-error" id="identityError">يرجى إدخال رقم هوية أو إقامة مكون من 10 أرقام.</span>
+      </div>
+
+      <!-- زر الاستعلام الرئيسي -->
+      <div class="sl-actions">
+        <button class="sl-btn sl-btn--primary" type="submit" id="submitInquiryBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <span>استعلام</span>
+        </button>
+      </div>
+
+      <!-- منطقة عرض النتيجة التفاعلية عند التجربة -->
+      <div class="sl-result-box" id="inquiryResultBox">
+        <div class="sl-result-header">
+          <span>بيانات الإجازة المرضية المستعلم عنها</span>
+          <button type="button" id="resetInquiryBtn" style="background:none;border:none;color:#1B8354;cursor:pointer;font-family:inherit;font-weight:600;">استعلام جديد ↺</button>
+        </div>
+        <div class="sl-result-grid">
+          <div class="sl-result-item">
+            <span>رمز الخدمة</span>
+            <strong id="resSerial">-</strong>
+          </div>
+          <div class="sl-result-item">
+            <span>رقم الهوية / الإقامة</span>
+            <strong id="resIdentity">-</strong>
+          </div>
+          <div class="sl-result-item">
+            <span>حالة الطلب</span>
+            <strong style="color:#1B8354;">معتمدة - متاحة للطباعة عبر تطبيق صحتي</strong>
+          </div>
+        </div>
+      </div>
+    </form>
+  </main>
+
+  <!-- ==================== 5. الشريط السفلي (Footer) ==================== -->
+  <footer dir="rtl" class="footer-container container-fluid">
+    <div class="footer">
+      <div class="footer-columns">
+        <!-- العمود الأول: عن صحة -->
+        <div class="about-seha section">
+          <h3 class="heading">عن صحة</h3>
+          <ul class="links-wrapper">
+            <li><a href="#/about">عن صحة</a></li>
+            <li><a href="#/ecosystem">المنظومة الصحية</a></li>
+            <li><a href="#/partners">شركاؤنا</a></li>
+          </ul>
+        </div>
+
+        <!-- العمود الثاني: الخدمات والمعلومات -->
+        <div class="footer-services section">
+          <h3 class="heading">الخدمات و المعلومات</h3>
+          <ul class="links-wrapper footer-services__list">
+            <li><a href="#/cms/services">الخدمات</a></li>
+            <li><a href="#/seha-plus">صحة بلس</a></li>
+            <li><a href="#/inquiries">الاستعلامات</a></li>
+            <li><a href="#/faq">الأسئلة الشائعة</a></li>
+            <li><a href="#/environmental-impact">الأثر البيئي</a></li>
+          </ul>
+        </div>
+
+        <!-- العمود الثالث: تواصل معنا -->
+        <div class="footer-contact section">
+          <h3 class="heading">تواصل معنا</h3>
+          <ul class="contact-list">
+            <li>
+              <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              </svg>
+              <span dir="ltr">920002005</span>
+            </li>
+            <li>
+              <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+              </svg>
+              <span>support@seha.sa</span>
+            </li>
+            <li>
+              <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+              </svg>
+              <span dir="ltr">920002005</span>
+            </li>
+            <li>
+              <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              <span>أوقات العمل: الأحد حتى الخميس 8 ص - 11 م</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- العمود الرابع: تابعنا على وأدوات الإتاحة -->
+        <div class="footer-social-access section">
+          <h3 class="heading">تابعنا على</h3>
+          <div class="social-buttons-row">
+            <button type="button" class="footer-icon-btn" id="youtubeSocialBtn" aria-label="يوتيوب" title="YouTube">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+              </svg>
+            </button>
+            <button type="button" class="footer-icon-btn" id="xSocialBtn" aria-label="منصة X" title="X (Twitter)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+              </svg>
+            </button>
+          </div>
+
+          <h3 class="heading">أدوات الإتاحة والوصول</h3>
+          <div class="social-buttons-row">
+            <button type="button" class="footer-icon-btn" id="footerA11yBtn" aria-label="أدوات الإتاحة" title="تفعيل خيارات الإتاحة">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="4" r="2"></circle>
+                <path d="M4 9h16"></path>
+                <path d="M10 9v11"></path>
+                <path d="M14 9v11"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- الشريط الختامي للفوتر -->
+      <div class="footer-bottom">
+        <div class="partner-logos">
+          <div class="partner-badge">رؤية 2030</div>
+          <div class="partner-badge">عام الذكاء الاصطناعي 2026</div>
+          <div class="partner-badge">وزارة الصحة</div>
+          <div class="partner-badge">لين (Lean)</div>
+        </div>
+
+        <div class="footer-legal">
+          <p>منصة صحة معتمدة من قبل وزارة الصحة © 2026</p>
+          <p>بدعم وتطوير لين لخدمات الأعمال</p>
+          <div class="policy-links">
+            <a href="#/usage-guide">دليل الاستخدام</a>
+            <a href="#/terms">الشروط والأحكام</a>
+            <a href="#/privacy">سياسة الخصوصية</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ==================== 6. زر الإتاحة والوصول العائم ==================== -->
+  <div id="userwayAccessibilityIcon" class="uai userway_dark" role="button" tabindex="0" aria-label="خيارات الإتاحة والوصول">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+      <circle cx="12" cy="4.5" r="2"></circle>
+      <path d="M5 9.5h14"></path>
+      <path d="M10 9.5v10"></path>
+      <path d="M14 9.5v10"></path>
+    </svg>
+  </div>
+
+  <div class="a11y-popover" id="a11yPopover">
+    <h4>أدوات الإتاحة والوصول</h4>
+    <button type="button" class="a11y-option-btn" id="toggleLargeTextBtn">
+      <span>تكبير حجم الخط</span>
+      <span>A+</span>
+    </button>
+    <button type="button" class="a11y-option-btn" id="toggleContrastBtn">
+      <span>تباين ألوان عالٍ</span>
+      <span>◐</span>
+    </button>
+  </div>
+
+  <!-- ==================== 7. نافذة عرض ونسخ الأكواد (HTML & CSS) ==================== -->
+  <div class="code-modal-backdrop" id="codeModalBackdrop">
+    <div class="code-modal">
+      <div class="code-modal-header">
+        <strong style="font-size:15px;">أكواد HTML و CSS الدقيقة المستخرجة من الواجهة</strong>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="copy-code-btn" id="copyActiveCodeBtn">نسخ الكود</button>
+          <button type="button" class="copy-code-btn" id="closeCodeModalBtn" style="background:#475569;">إغلاق ✕</button>
+        </div>
+      </div>
+      <div class="code-modal-tabs">
+        <button type="button" class="code-tab-btn active" data-code-tab="form-html">HTML (بطاقة الاستعلام والهيرو)</button>
+        <button type="button" class="code-tab-btn" data-code-tab="form-css">CSS (البطاقة والحقول والأزرار)</button>
+        <button type="button" class="code-tab-btn" data-code-tab="header-footer">HTML & CSS (الهيدر والفوتر)</button>
+      </div>
+      <div class="code-modal-body">
+        <pre id="codeDisplayPre"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 1. التحكم في القائمة الجانبية المنبثقة (Drawer)
+    const openDrawerBtn = document.getElementById('openDrawerBtn');
+    const closeDrawerBtn = document.getElementById('closeDrawerBtn');
+    const drawerBackdrop = document.getElementById('drawerBackdrop');
+    const sideDrawer = document.getElementById('sideDrawer');
+
+    function toggleDrawer(show) {
+      if (show) {
+        sideDrawer.classList.add('show');
+        drawerBackdrop.classList.add('show');
+      } else {
+        sideDrawer.classList.remove('show');
+        drawerBackdrop.classList.remove('show');
+      }
+    }
+
+    openDrawerBtn.addEventListener('click', () => toggleDrawer(true));
+
+    const drawerLoginBtn = document.getElementById('drawerLoginBtn');
+    const youtubeSocialBtn = document.getElementById('youtubeSocialBtn');
+    const xSocialBtn = document.getElementById('xSocialBtn');
+
+    drawerLoginBtn.addEventListener('click', () => {
+      toggleDrawer(false);
+      serialInput.focus();
+    });
+
+    youtubeSocialBtn.addEventListener('click', () => {
+      window.open('https://www.youtube.com', '_blank', 'noopener');
+    });
+
+    xSocialBtn.addEventListener('click', () => {
+      window.open('https://x.com', '_blank', 'noopener');
+    });
+    closeDrawerBtn.addEventListener('click', () => toggleDrawer(false));
+    drawerBackdrop.addEventListener('click', () => toggleDrawer(false));
+
+    // تفعيل روابط القائمة الجانبية عند النقر
+    document.querySelectorAll('.header-section--tabs .nav-link').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.header-section--tabs .nav-link').forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+        toggleDrawer(false);
+      });
+    });
+
+    // 2. التحقق من نموذج الاستعلام عن إجازة مرضية وعرض النتيجة
+    const slInquiryForm = document.getElementById('slInquiryForm');
+    const serialInput = document.getElementById('sl-serial');
+    const identityInput = document.getElementById('sl-identity');
+    const serialFieldGroup = document.getElementById('serialFieldGroup');
+    const identityFieldGroup = document.getElementById('identityFieldGroup');
+    const inquiryResultBox = document.getElementById('inquiryResultBox');
+    const resSerial = document.getElementById('resSerial');
+    const resIdentity = document.getElementById('resIdentity');
+    const resetInquiryBtn = document.getElementById('resetInquiryBtn');
+
+    slInquiryForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const serialVal = serialInput.value.trim();
+      const identityVal = identityInput.value.trim();
+      let valid = true;
+
+      if (serialVal.length < 4) {
+        serialFieldGroup.classList.add('has-error');
+        valid = false;
+      } else {
+        serialFieldGroup.classList.remove('has-error');
+      }
+
+      if (!/^\d{10}$/.test(identityVal)) {
+        identityFieldGroup.classList.add('has-error');
+        valid = false;
+      } else {
+        identityFieldGroup.classList.remove('has-error');
+      }
+
+      if (valid) {
+        resSerial.textContent = serialVal;
+        resIdentity.textContent = identityVal;
+        inquiryResultBox.classList.add('show');
+      }
+    });
+
+    serialInput.addEventListener('input', () => serialFieldGroup.classList.remove('has-error'));
+    identityInput.addEventListener('input', () => identityFieldGroup.classList.remove('has-error'));
+
+    resetInquiryBtn.addEventListener('click', () => {
+      serialInput.value = '';
+      identityInput.value = '';
+      inquiryResultBox.classList.remove('show');
+    });
+
+    // 3. التحكم في زر الإتاحة العائم (Accessibility Widget)
+    const a11yIcon = document.getElementById('userwayAccessibilityIcon');
+    const footerA11yBtn = document.getElementById('footerA11yBtn');
+    const a11yPopover = document.getElementById('a11yPopover');
+    const toggleLargeTextBtn = document.getElementById('toggleLargeTextBtn');
+    const toggleContrastBtn = document.getElementById('toggleContrastBtn');
+
+    function toggleA11yPopover() {
+      a11yPopover.classList.toggle('show');
+    }
+
+    a11yIcon.addEventListener('click', toggleA11yPopover);
+    footerA11yBtn.addEventListener('click', toggleA11yPopover);
+
+    toggleLargeTextBtn.addEventListener('click', () => {
+      document.body.classList.toggle('a11y-large-text');
+      toggleLargeTextBtn.classList.toggle('active');
+    });
+
+    toggleContrastBtn.addEventListener('click', () => {
+      document.body.classList.toggle('a11y-high-contrast');
+      toggleContrastBtn.classList.toggle('active');
+    });
+
+    // 4. نافذة عرض ونسخ أكواد HTML و CSS المستخرجة
+    const codeSnippets = {
+      'form-html': `<!-- مسار التنقل وترويسة الهيرو -->
+<div class="page-content-breadcrumb-row">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="#/">الرئيسية</a></li>
+      <li class="breadcrumb-item"><a href="#/inquiries">الاستعلامات</a></li>
+      <li class="breadcrumb-item active" aria-current="page">الإجازات المرضية</li>
+    </ol>
+  </nav>
+</div>
+
+<div class="sl-inquiry" dir="rtl">
+  <section class="sl-inquiry__hero">
+    <div class="sl-inquiry__hero-inner">
+      <h1>الإجازات المرضية</h1>
+      <p>خدمة الاستعلام عن الإجازات المرضية تتيح لك الاستعلام عن حالة طلبك للإجازة ويمكنك طباعتها عن طريق تطبيق صحتي</p>
+    </div>
+  </section>
+</div>
+
+<!-- بطاقة الاستعلام عن إجازة مرضية -->
+<div class="sl-inquiry__card">
+  <h2 class="sl-inquiry__card-title">الاستعلام عن إجازة مرضية</h2>
+  
+  <div class="sl-field">
+    <label for="sl-serial">رمز الخدمة</label>
+    <input id="sl-serial" class="sl-input" type="text" maxlength="20" placeholder="أدخل رمز الخدمة" value="">
+  </div>
+  
+  <div class="sl-field">
+    <label for="sl-identity">رقم الهوية / الإقامة</label>
+    <input id="sl-identity" class="sl-input" type="text" maxlength="10" placeholder="أدخل رقم الهوية / الإقامة" value="">
+  </div>
+  
+  <div class="sl-actions">
+    <button class="sl-btn sl-btn--primary" type="submit">استعلام</button>
+  </div>
+</div>`,
+      'form-css': `/* أنماط CSS المحسوبة لبطاقة الاستعلام والحقول والزر */
+.sl-inquiry__hero-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 693px;
+  font-family: "IBM Plex Sans Arabic", Cairo, sans-serif;
+}
+
+.sl-inquiry__hero-inner h1 {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 35px;
+  letter-spacing: -0.5px;
+  color: #161616; /* rgb(22, 22, 22) */
+}
+
+.sl-inquiry__card {
+  display: flex;
+  flex-direction: column;
+  row-gap: 16px;
+  width: 640px;
+  max-width: 100%;
+  padding: 24px;
+  background-color: #FFFFFF;
+  border: 1px solid #E5E7EB; /* rgb(229, 231, 235) */
+  border-radius: 16px;
+  box-shadow: rgba(16, 24, 40, 0.06) 0px 4px 8px 0px,
+              rgba(16, 24, 40, 0.1) 0px 2px 4px 0px;
+}
+
+.sl-input {
+  width: 100%; /* 592px داخل البطاقة */
+  height: 40px;
+  padding: 8px 12px;
+  font-family: "IBM Plex Sans Arabic", Cairo, sans-serif;
+  font-size: 16px;
+  background-color: #FFFFFF;
+  border: 1px solid #9DA4AE; /* rgb(157, 164, 174) */
+  border-radius: 4px;
+}
+
+.sl-btn.sl-btn--primary {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: 40px;
+  line-height: 24px;
+  font-family: "IBM Plex Sans Arabic", Cairo, sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  color: #FFFFFF;
+  background-color: #1B8354; /* rgb(27, 131, 84) */
+  border: 1px solid #1B8354;
+  border-radius: 4px;
+}`,
+      'header-footer': `/* أنماط الهيدر والقائمة الجانبية والفوتر وزر الإتاحة */
+.app-header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 99;
+  height: 94.19px;
+  width: 100%;
+  background-color: #FFFFFF;
+  font-family: Cairo, sans-serif;
+}
+
+.nav-link.active {
+  background-color: #1B8354;
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 16px;
+  border-radius: 4px;
+}
+
+.footer-container {
+  direction: rtl;
+  background-color: #F3F4F6; /* rgb(243, 244, 246) */
+  color: #55627A;            /* rgb(85, 98, 122) */
+  font-family: Cairo, sans-serif;
+  font-size: 16px;
+}
+
+.footer h3.heading {
+  color: #55627A;
+  font-size: 25.15px;
+  border-bottom: 1px solid #D2D6DB;
+}
+
+#userwayAccessibilityIcon {
+  position: fixed;
+  bottom: 10px;
+  left: 10px;
+  z-index: 999999;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+}`
+    };
+
+    const openCodeModalBtn = document.getElementById('openCodeModalBtn');
+    const closeCodeModalBtn = document.getElementById('closeCodeModalBtn');
+    const codeModalBackdrop = document.getElementById('codeModalBackdrop');
+    const codeDisplayPre = document.getElementById('codeDisplayPre');
+    const copyActiveCodeBtn = document.getElementById('copyActiveCodeBtn');
+    let currentCodeTab = 'form-html';
+
+    function renderCodeTab(tabKey) {
+      currentCodeTab = tabKey;
+      codeDisplayPre.textContent = codeSnippets[tabKey] || '';
+      document.querySelectorAll('.code-tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-code-tab') === tabKey);
+      });
+    }
+
+    openCodeModalBtn.addEventListener('click', () => {
+      renderCodeTab(currentCodeTab);
+      codeModalBackdrop.classList.add('show');
+    });
+
+    closeCodeModalBtn.addEventListener('click', () => {
+      codeModalBackdrop.classList.remove('show');
+    });
+
+    document.querySelectorAll('.code-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        renderCodeTab(btn.getAttribute('data-code-tab'));
+      });
+    });
+
+    copyActiveCodeBtn.addEventListener('click', () => {
+      const textToCopy = codeSnippets[currentCodeTab] || '';
+      const tempArea = document.createElement('textarea');
+      tempArea.value = textToCopy;
+      document.body.appendChild(tempArea);
+      tempArea.select();
+      try {
+        document.execCommand('copy');
+        copyActiveCodeBtn.textContent = 'تم النسخ ✓';
+        setTimeout(() => { copyActiveCodeBtn.textContent = 'نسخ الكود'; }, 1800);
+      } catch (err) {
+        copyActiveCodeBtn.textContent = 'تعذر النسخ';
+      }
+      document.body.removeChild(tempArea);
+    });
+  </script>
+</body>
+</html>
