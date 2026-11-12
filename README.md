@@ -108,7 +108,7 @@ bun run db:seed    # insert the deterministic demo records
 1. أنشئ المشروع في [supabase.com](https://supabase.com) ثم افتح **SQL Editor** والصق محتوى [`supabase/schema.sql`](supabase/schema.sql) واضغط **Run** — هذا ينشئ الجداول (`sick_leaves` و `inquiry_logs`) مع بيانات العرض التجريبية الثمانية.
 2. في **Netlify**: Site configuration → Environment variables أضف المتغيرين:
    - `SUPABASE_URL` = رابط المشروع (`https://xxxx.supabase.co` — تجده في Settings → API)
-   - `SUPABASE_SERVICE_KEY` = المفتاح السري (`sb_secret_…` — Settings → API Keys)
+   - `SUPABASE_SERVICE_KEY` = المفتاح السري (Settings → API Keys)
 3. أعد النشر (Trigger deploy). بمجرد وجود المتغيرين يتحول الموقع تلقائيًا إلى Supabase.
 
 بدون المتغيرين يعمل الموقع عبر SQLite المدمج + Netlify Blobs — لذا لا يتعطل شيء أبدًا.

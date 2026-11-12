@@ -17,7 +17,7 @@
 # lost, verification works from any instance):
 #
 #   SUPABASE_URL           https://<project-ref>.supabase.co
-#   SUPABASE_SERVICE_KEY   sb_secret_… (Dashboard → Settings → API Keys)
+#   SUPABASE_SERVICE_KEY   secret key or legacy service-role JWT (Settings → API Keys)
 #
 # ⚠ Set them in the Netlify UI (Site configuration → Environment variables),
 # NOT in this file — this repository is public and secrets must never be
