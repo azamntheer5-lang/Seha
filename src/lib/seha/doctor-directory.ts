@@ -13,6 +13,39 @@
 
 import { db } from "@/lib/db";
 import { getStore } from "@/lib/seha/store";
+import { HOSPITAL_DIRECTORY } from "@/lib/seha/hospital-directory";
+
+/**
+ * Seed the local memory once with the curated directory doctors
+ * (المستشفيات الحكومية والخاصة + أطباؤها). Runs lazily on the first
+ * doctors API call; never overrides entries the operator already created.
+ */
+let seededProcess = false;
+export async function seedDirectoryOnce(): Promise<void> {
+  if (seededProcess) return;
+  seededProcess = true;
+  try {
+    let inserted = 0;
+    for (const h of HOSPITAL_DIRECTORY) {
+      for (const d of h.doctors) {
+        const res = await db.doctorEntry.create({
+          data: {
+            doctorName: d.nameAr,
+            jobTitleAr: d.titleAr,
+            hospital: h.nameAr,
+            hospitalEn: h.nameEn,
+            useCount: 0,
+          },
+        }).catch(() => null); // already present (unique) — fine
+        if (res) inserted += 1;
+      }
+    }
+    if (inserted) console.log(`[doctor-directory] seeded ${inserted} curated doctors`);
+  } catch (error) {
+    seededProcess = false; // allow a retry on the next call
+    console.error("[doctor-directory] seed failed:", error);
+  }
+}
 
 export type DoctorSuggestion = {
   id: string;

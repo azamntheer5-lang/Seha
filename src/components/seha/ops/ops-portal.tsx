@@ -37,6 +37,11 @@ import {
   normalizeTemplateId,
 } from "@/lib/seha/templates";
 import {
+  HOSPITAL_DIRECTORY,
+  findHospital,
+  hospitalLogoUrl,
+} from "@/lib/seha/hospital-directory";
+import {
   NATIONALITY_EN,
   parseSmartInput,
   type SmartParseResult,
@@ -305,6 +310,57 @@ export function OpsPortal({
   const [aiError, setAiError] = useState("");
   const dirFetchRef = useRef("");
 
+  // ── الشعار: شعار المنشأة على التقرير + رفع شعار خاص ──
+  const [logoPickerOpen, setLogoPickerOpen] = useState(false);
+  const [logoSearch, setLogoSearch] = useState("");
+  const [customLogo, setCustomLogo] = useState(""); // dataURL — يعيش في localStorage
+  const [pickedLogoSlug, setPickedLogoSlug] = useState(""); // اختيار يدوي من المعرض
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    try {
+      setCustomLogo(localStorage.getItem("ops-custom-logo") ?? "");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  /** الشعار الفعلي المستخدم في التقرير. */
+  const activeLogoUrl = useMemo(() => {
+    if (customLogo) return customLogo;
+    if (pickedLogoSlug) return `/assets/logos/${pickedLogoSlug}.svg`;
+    return hospitalLogoUrl(form.hospital);
+  }, [customLogo, pickedLogoSlug, form.hospital]);
+
+  const onUploadLogo = (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > 1_500_000) {
+      setAiError("حجم الشعار كبير — اختر صورة أقل من 1.5MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result || "");
+      setCustomLogo(url);
+      setPickedLogoSlug("");
+      setLogoPickerOpen(false);
+      try {
+        localStorage.setItem("ops-custom-logo", url);
+      } catch {
+        /* oversized — session only */
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const filteredLogoHospitals = useMemo(() => {
+    const q = logoSearch.trim();
+    if (!q) return HOSPITAL_DIRECTORY;
+    return HOSPITAL_DIRECTORY.filter(
+      (h) => h.nameAr.includes(q) || h.region.includes(q) || h.nameEn.toLowerCase().includes(q.toLowerCase())
+    );
+  }, [logoSearch]);
+
   const loadHospitals = useCallback(async () => {
     try {
       const code = getStoredOpsCode() ?? "";
@@ -522,7 +578,7 @@ export function OpsPortal({
         return;
       }
       // Saved → open the preview & edit page (صفحة المعاينة والتعديل)
-      setRecord(body.data as PortalSickLeaveRecord);
+      setRecord({ ...(body.data as PortalSickLeaveRecord), logoUrl: activeLogoUrl });
       setHistory(null); // new leave saved → history cache is stale
       setSaveState("idle");
       setSaveError("");
@@ -870,6 +926,74 @@ export function OpsPortal({
           </button>
         </div>
       </div>
+
+      {/* ── معرض الشعارات: زر تغيير الشعار ── */}
+      {logoPickerOpen && (
+        <div
+          className="ops-history-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="اختيار شعار المنشأة"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLogoPickerOpen(false);
+          }}
+        >
+          <div className="ops-history-dialog">
+            <div className="ops-history-head">
+              <div>
+                <h2>شعار المنشأة</h2>
+                <p>شعارات المستشفيات الحكومية والخاصة والعسكرية حسب المنطقة</p>
+              </div>
+              <button type="button" className="ops-chip" onClick={() => setLogoPickerOpen(false)}>
+                إغلاق
+              </button>
+            </div>
+            <div className="ops-logo-actions">
+              <input
+                className={inputCls}
+                placeholder="ابحث باسم المستشفى أو المنطقة…"
+                value={logoSearch}
+                onChange={(e) => setLogoSearch(e.target.value)}
+                style={{ maxWidth: 320 }}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => onUploadLogo(e.target.files?.[0])}
+              />
+              <button type="button" className="ops-mini-btn" onClick={() => fileInputRef.current?.click()}>
+                رفع شعار خاص
+              </button>
+            </div>
+            <div className="ops-logo-grid">
+              {filteredLogoHospitals.map((h) => (
+                <button
+                  key={h.slug}
+                  type="button"
+                  className={`ops-logo-card${activeLogoUrl === `/assets/logos/${h.slug}.svg` ? " ops-logo-card-active" : ""}`}
+                  onClick={() => {
+                    setPickedLogoSlug(h.slug);
+                    setCustomLogo("");
+                    try {
+                      localStorage.removeItem("ops-custom-logo");
+                    } catch {
+                      /* ignore */
+                    }
+                    // Picking a hospital's logo switches the facility to it.
+                    setForm((f) => ({ ...f, hospital: h.nameAr, hospitalEn: h.nameEn }));
+                    setLogoPickerOpen(false);
+                  }}
+                >
+                  <img src={`/assets/logos/${h.slug}.svg`} alt={h.nameAr} />
+                  <span className="ops-logo-card-region">{h.region}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── سجل الإجازات: every previously created leave ── */}
       {historyOpen && (
@@ -1599,6 +1723,33 @@ export function OpsPortal({
                       />
                     </Field>
                     <div className="ops-field">
+                      <span className="ops-field-label">شعار المنشأة على التقرير</span>
+                      <div className="ops-logo-row">
+                        <img src={activeLogoUrl} alt="شعار المنشأة" className="ops-logo-preview" />
+                        <button type="button" className="ops-mini-btn" onClick={() => setLogoPickerOpen(true)}>
+                          تغيير الشعار
+                        </button>
+                        {(customLogo || pickedLogoSlug) && (
+                          <button
+                            type="button"
+                            className="ops-chip"
+                            onClick={() => {
+                              setCustomLogo("");
+                              setPickedLogoSlug("");
+                              try {
+                                localStorage.removeItem("ops-custom-logo");
+                              } catch {
+                                /* ignore */
+                              }
+                            }}
+                          >
+                            إرجاع تلقائي حسب المستشفى
+                          </button>
+                        )}
+                      </div>
+                      <span className="ops-field-hint">يتغيّر تلقائيًا حسب المستشفى — أو اختر/ارفع شعارًا يدويًا</span>
+                    </div>
+                    <div className="ops-field">
                       <span className="ops-field-label">المنشأة الصحية (عربي)</span>
                       <input
                         className={inputCls}
@@ -2016,6 +2167,18 @@ function OpsPortalStyles() {
       .ops-chip-ai { border-color: #f2c88a; background: #fdf7ec; color: #8a5a12; }
       .ops-chip-ai:hover { background: #f9ecd2; }
       .ops-dir-ai { padding-top: 2px; border-top: 1px dashed #eab308; padding-top: 6px; }
+      .ops-logo-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+      .ops-logo-preview { height: 52px; width: auto; max-width: 150px; object-fit: contain; border: 1px solid #d0d5dd; border-radius: 8px; padding: 3px; background: #fff; }
+      .ops-logo-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+      .ops-logo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; max-height: 55vh; overflow-y: auto; padding: 2px; }
+      .ops-logo-card {
+        display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px;
+        background: #f9fafb; border: 2px solid #e4e7ec; border-radius: 12px; cursor: pointer; transition: all 0.15s;
+      }
+      .ops-logo-card:hover { border-color: #129153; background: #e8f5ee; }
+      .ops-logo-card-active { border-color: #129153; background: #e8f5ee; }
+      .ops-logo-card img { width: 100%; height: 74px; object-fit: contain; }
+      .ops-logo-card-region { font-size: 11px; color: #667085; font-weight: 600; }
       .ops-mini-btn {
         flex-shrink: 0; border: none; border-radius: 10px; padding: 0 16px;
         background: #e8f5ee; color: #0d5c3a; font-family: inherit; font-size: 13px; font-weight: 700;
