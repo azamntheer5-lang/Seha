@@ -14,26 +14,90 @@ import type { SehaRoute } from "./seha-types";
  * Every nav link now navigates the hash router (all buttons work).
  */
 
-/** Brand logo — the exact inline SVG from the extracted page (صحة / Seha By Lean). */
+/**
+ * Brand logo — 1:1 recreation of the uploaded "Seha by Lean" mark
+ * (pixel-measured from the reference image):
+ *  - Text stack (left): صحة (Cairo 700) / Seha (Cairo 700) / By Lean (Cairo 600)
+ *    in dark navy #010238, all left-aligned.
+ *  - Checkmark icon (right): 14 horizontal rounded pill bars in #8CC8EC,
+ *    coordinates extracted per-bar from the reference image
+ *    (right arm descending + short left arm + tapering vertex base).
+ * Order preserved exactly as the reference: icon at the far right of the group.
+ */
+const LOGO_FONT = "var(--font-cairo), 'Cairo', 'IBM Plex Sans Arabic', sans-serif";
+
+/** [x, y, width] of each pill bar (height 12.8, rx 6.4) in the 556×264 viewBox. */
+const CHECKMARK_BARS: [number, number, number][] = [
+  // الذراع اليمنى الطويلة — تنزل من أعلى اليمين نحو القاع
+  [483, 0, 66],
+  [468, 24.7, 88],
+  [454, 49.4, 87],
+  [439, 74.1, 88],
+  [425, 98.8, 87],
+  [410, 123.5, 88],
+  [396, 148.2, 87],
+  // الذراع اليسرى القصيرة
+  [290, 98.8, 40],
+  [271, 123.5, 82],
+  [280, 148.2, 87],
+  // قاعدة علامة الصح — أطول شريط ثم تتقلص نحو الأسفل
+  [294, 172.9, 175],
+  [309, 197.6, 145],
+  [323, 222.3, 117],
+  [338, 247, 87],
+];
+
 function BrandLogo() {
   return (
     <svg
-      width="120"
-      height="46"
-      viewBox="0 0 150 54"
+      width="118"
+      height="56"
+      viewBox="0 0 556 264"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       role="img"
-      aria-label="منصة صحة"
+      aria-label="صحة - Seha by Lean"
     >
-      <path d="M128 12L142 26L128 40L114 26L128 12Z" fill="#0EA5E9" fillOpacity="0.85" />
-      <path d="M118 16L130 28L118 40L106 28L118 16Z" fill="#1E3A8A" fillOpacity="0.9" />
-      <text x="52" y="31" fill="#1E293B" fontFamily="Cairo, sans-serif" fontWeight="700" fontSize="24">
+      {/* كتلة النصوص (يسار الشعار): صحة / Seha / By Lean */}
+      <text
+        x="0"
+        y="79"
+        fill="#010238"
+        fontSize="113"
+        fontWeight="700"
+        style={{ fontFamily: LOGO_FONT, direction: "ltr", unicodeBidi: "isolate" }}
+      >
         صحة
       </text>
-      <text x="48" y="45" fill="#64748B" fontFamily="Cairo, sans-serif" fontWeight="600" fontSize="10">
-        Seha By Lean
+      <text
+        x="0"
+        y="192"
+        fill="#010238"
+        fontSize="113"
+        fontWeight="700"
+        style={{ fontFamily: LOGO_FONT, direction: "ltr" }}
+      >
+        Seha
       </text>
+      <text
+        x="0"
+        y="252"
+        fill="#010238"
+        fontSize="44"
+        fontWeight="600"
+        textLength="167"
+        lengthAdjust="spacingAndGlyphs"
+        style={{ fontFamily: LOGO_FONT, direction: "ltr" }}
+      >
+        By Lean
+      </text>
+
+      {/* أيقونة علامة الصح (يمين الشعار): أشرطة أفقية مدوّرة */}
+      <g fill="#8CC8EC" aria-hidden="true">
+        {CHECKMARK_BARS.map(([x, y, w]) => (
+          <rect key={`${x}-${y}`} x={x} y={y} width={w} height="12.8" rx="6.4" />
+        ))}
+      </g>
     </svg>
   );
 }
