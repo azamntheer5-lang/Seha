@@ -19,6 +19,7 @@ import {
   mirrorSickLeave,
   fromMirror,
 } from "@/lib/seha/blob-store";
+import { normalizeTemplateId } from "@/lib/seha/templates";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,7 @@ type CreateBody = {
   employerAr?: string;
   nationalityAr?: string;
   nationalityEn?: string;
+  templateId?: string;
   addQr?: boolean;
   showLicense?: boolean;
 };
@@ -151,6 +153,9 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const reportTime = reportTimeString(now);
     const reportDate = reportDateString(now);
+    // The operator's template choice (validated against the registry —
+    // unknown ids fall back to the default template, never fail the save).
+    const templateId = normalizeTemplateId(body.templateId);
 
     const store = getStore();
 
@@ -193,6 +198,7 @@ export async function POST(request: NextRequest) {
       employerAr: str(body.employerAr) || null,
       nationalityAr: str(body.nationalityAr) || "السعودية",
       nationalityEn: str(body.nationalityEn) || "Saudi Arabia",
+      templateId,
       addQr: body.addQr === true,
       showLicense: body.showLicense !== false,
       // A re-issue is a fresh print → refresh the printed timestamp.
@@ -238,6 +244,12 @@ export async function POST(request: NextRequest) {
     }
 
     // ---- Response (mirrors the print document fields) ---------------------
+    // When the store could not persist the template (e.g. Supabase before
+    // the template_id column exists), keep the operator's choice in the
+    // session payload so the review page renders the design they picked.
+    if (record.templateId !== templateId) {
+      record = { ...record, templateId };
+    }
     return NextResponse.json(
       { ok: true, data: toPayload(record) },
       { headers: { "Cache-Control": "no-store" } }
@@ -354,9 +366,12 @@ export async function PATCH(request: NextRequest) {
 
     const dateFromHijri = toHijri(dateFromIso);
     const dateToHijri = toHijri(dateToIso);
+    // Template: the operator's current choice wins on every edit (validated
+    // against the registry; unknown ids fall back to the default template).
+    const templateId = normalizeTemplateId(body.templateId);
 
     // ---- Persist (report timestamp stays the ORIGINAL issuance stamp) ----
-    const record = await store.update(existing.id, {
+    let record = await store.update(existing.id, {
       serviceCode: nextCode,
       patientId,
       patientName,
@@ -378,12 +393,20 @@ export async function PATCH(request: NextRequest) {
       employerAr: str(body.employerAr) || null,
       nationalityAr: str(body.nationalityAr) || "السعودية",
       nationalityEn: str(body.nationalityEn) || "Saudi Arabia",
+      templateId,
       addQr: body.addQr === true,
       showLicense: body.showLicense !== false,
     });
 
     if (!store.durable) {
       await mirrorSickLeave(record as never);
+    }
+
+    // Keep the operator's chosen template in the response even when the
+    // store could not persist it yet (Supabase without the template_id
+    // column) so the live preview and PDF stay on the picked design.
+    if (record.templateId !== templateId) {
+      record = { ...record, templateId };
     }
 
     return NextResponse.json(
@@ -425,6 +448,7 @@ function toPayload(record: SickLeaveRow): PortalSickLeaveRecord {
     employerAr: record.employerAr ?? "",
     nationalityAr: record.nationalityAr ?? "",
     nationalityEn: record.nationalityEn ?? "",
+    templateId: record.templateId ?? "official",
     addQr: record.addQr,
     showLicense: record.showLicense,
     dateFromHijri: record.dateFromHijri ?? "",

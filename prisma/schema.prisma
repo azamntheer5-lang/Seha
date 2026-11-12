@@ -48,6 +48,7 @@ model SickLeave {
   nationalityEn    String? // الجنسية (إنجليزي)
   status           String   @default("ACTIVE") // ACTIVE | EXPIRED | CANCELLED
   verificationCode String // رمز التحقق (QR)
+  templateId       String   @default("official") // قالب التقرير (src/lib/seha/templates.ts)
   addQr            Boolean  @default(false) // إظهار QR في التقرير
   showLicense      Boolean  @default(true) // إظهار رقم الترخيص
   reportTime       String? // طابع الوقت المطبوع (05:22 PM)

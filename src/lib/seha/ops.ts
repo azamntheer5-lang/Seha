@@ -124,6 +124,7 @@ export type PortalSickLeaveInput = {
   employerAr: string;
   nationalityAr: string;
   nationalityEn: string;
+  templateId: string; // قالب التقرير (src/lib/seha/templates.ts)
   addQr: boolean;
   showLicense: boolean;
 };

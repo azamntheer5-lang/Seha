@@ -22,7 +22,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { SickLeaveDocument } from "./sick-leave-document";
+import { TemplateDocument } from "./template-document";
 import {
   computeDurationDays,
   generateServiceNumber,
@@ -31,6 +31,12 @@ import {
   type PortalSickLeaveRecord,
 } from "@/lib/seha/ops";
 import {
+  DEFAULT_TEMPLATE_ID,
+  SICK_LEAVE_TEMPLATES,
+  getTemplateMeta,
+  normalizeTemplateId,
+} from "@/lib/seha/templates";
+import {
   NATIONALITY_EN,
   parseSmartInput,
   type SmartParseResult,
@@ -38,6 +44,8 @@ import {
 } from "@/lib/seha/smart-parse";
 
 const SESSION_KEY = "seha_ops_code";
+/** Remembers the operator's last template choice across leaves. */
+const TEMPLATE_KEY = "seha_ops_template";
 
 /**
  * Module-level mirror of the access code — set the moment the operator
@@ -99,11 +107,21 @@ type FormState = {
   employerAr: string;
   nationalityAr: string;
   nationalityEn: string;
+  templateId: string;
   addQr: boolean;
   showLicense: boolean;
 };
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
+
+/** The operator's last template choice (falls back to the default). */
+function rememberedTemplateId(): string {
+  try {
+    return normalizeTemplateId(localStorage.getItem(TEMPLATE_KEY));
+  } catch {
+    return DEFAULT_TEMPLATE_ID;
+  }
+}
 
 const emptyForm = (): FormState => ({
   serviceCode: "",
@@ -124,9 +142,43 @@ const emptyForm = (): FormState => ({
   employerAr: "",
   nationalityAr: "السعودية",
   nationalityEn: "Saudi Arabia",
+  templateId: rememberedTemplateId(),
   addQr: false,
   showLicense: true,
 });
+
+/** Sample record rendered inside the template picker's live miniatures. */
+const SAMPLE_RECORD: PortalSickLeaveRecord = {
+  id: "sample",
+  serviceCode: "PSL26197640978",
+  patientId: "1023456781",
+  patientName: "محمد عبدالله السالم",
+  patientNameEn: "MOHAMMED ABDULLAH ALSALOM",
+  patientPhone: "",
+  sickLeaveDateIso: "2026-11-12",
+  dateFromIso: "2026-11-12",
+  dateToIso: "2026-11-14",
+  doctorName: "د. خالد بن سعد الحربي",
+  doctorNameEn: "KHALED SAAD ALHARBI",
+  doctorJobTitle: "طبيب عام",
+  doctorJobTitleEn: "General Practitioner",
+  hospital: "المستشفى السعودي الألماني",
+  hospitalEn: "Saudi German Hospital",
+  licenseNumber: "1410845786",
+  employerAr: "جامعة طيبة",
+  nationalityAr: "السعودية",
+  nationalityEn: "Saudi Arabia",
+  templateId: "official",
+  addQr: false,
+  showLicense: true,
+  dateFromHijri: "02-06-1448",
+  dateToHijri: "04-06-1448",
+  durationDays: 3,
+  reportTime: "05:22 PM",
+  reportDate: "Thursday, November 12, 2026",
+  verificationCode: "VRF-8K2M-QT91",
+  createdAt: "2026-11-12T00:00:00.000Z",
+};
 
 /** Merge the live-parsed smart-input fields onto the form (non-empty only). */
 function applyParsed(form: FormState, p: Partial<SmartParsedFields>): FormState {
@@ -211,7 +263,7 @@ export function OpsPortal({
 }) {
   const [mode, setMode] = useState<"workspace" | "review">("workspace");
   const [tab, setTab] = useState<"smart" | "form">("smart");
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const [form, setForm] = useState<FormState>(() => ({ ...emptyForm(), templateId: rememberedTemplateId() }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [issuing, setIssuing] = useState(false);
   const [autoNotice, setAutoNotice] = useState("");
@@ -330,6 +382,7 @@ export function OpsPortal({
           employerAr: form.employerAr.trim(),
           nationalityAr: form.nationalityAr.trim(),
           nationalityEn: form.nationalityEn.trim(),
+          templateId: form.templateId,
           addQr: form.addQr,
           showLicense: form.showLicense,
         }),
@@ -376,6 +429,17 @@ export function OpsPortal({
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
+  /** Pick the report template — remembered for the operator's next leave. */
+  const chooseTemplate = (id: string) => {
+    const templateId = normalizeTemplateId(id);
+    setForm((f) => ({ ...f, templateId }));
+    try {
+      localStorage.setItem(TEMPLATE_KEY, templateId);
+    } catch {
+      /* private mode — choice still applies to this session */
+    }
+  };
+
   // ── Review page: live edit + debounced auto-save ─────────────────────────
 
   const sendSave = useCallback(
@@ -403,6 +467,7 @@ export function OpsPortal({
         employerAr: rec.employerAr,
         nationalityAr: rec.nationalityAr,
         nationalityEn: rec.nationalityEn,
+        templateId: rec.templateId,
         addQr: rec.addQr,
         showLicense: rec.showLicense,
       };
@@ -634,6 +699,9 @@ export function OpsPortal({
               </div>
             </div>
             <div className="ops-review-actions">
+              <span className="ops-review-tpl-chip" title="القالب المطبق على هذا التقرير">
+                القالب: {getTemplateMeta(record.templateId).nameAr}
+              </span>
               <button
                 type="button"
                 className="ops-btn ops-btn-primary"
@@ -884,14 +952,63 @@ export function OpsPortal({
           {/* Hidden FULL-SIZE A4 render used only for the real PDF capture */}
           <div aria-hidden="true" style={{ position: "fixed", left: "-10000px", top: 0, width: 794 }}>
             <div ref={captureRef}>
-              <SickLeaveDocument data={record} />
+              <TemplateDocument templateId={record.templateId} data={record} />
             </div>
           </div>
         </div>
       ) : (
-        /* ─────────────── Workspace: smart input + form ─────────────── */
+        /* ─────────────── Workspace: template picker + smart input + form ─────────────── */
         <div className="ops-workspace">
           <div className="ops-main">
+            {/* STEP 1 — template selection (اختيار القالب قبل البدء) */}
+            <section className="ops-tpl-section" aria-labelledby="ops-tpl-title">
+              <div className="ops-tpl-head">
+                <h3 id="ops-tpl-title">
+                  <span className="ops-tpl-stepnum" aria-hidden="true">١</span>
+                  اختر قالب التقرير
+                </h3>
+                <p>القالب المختار يُطبَّق على المعاينة وملف PDF — ويمكن تغييره في أي وقت قبل الإصدار.</p>
+              </div>
+              <div className="ops-tpl-grid" role="radiogroup" aria-label="قوالب تقرير الإجازة المرضية">
+                {SICK_LEAVE_TEMPLATES.map((t) => {
+                  const selected = form.templateId === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      aria-label={`قالب ${t.nameAr} — ${t.taglineAr}`}
+                      className={`ops-tpl-card${selected ? " selected" : ""}`}
+                      onClick={() => chooseTemplate(t.id)}
+                    >
+                      <span className="ops-tpl-thumb" aria-hidden="true">
+                        <span className="ops-tpl-thumb-frame">
+                          <span className="ops-tpl-thumb-scale">
+                            <TemplateDocument templateId={t.id} data={SAMPLE_RECORD} />
+                          </span>
+                        </span>
+                      </span>
+                      <span className="ops-tpl-card-body">
+                        <span className="ops-tpl-card-name">
+                          {t.nameAr}
+                          <span className="ops-tpl-card-check" aria-hidden="true">✓</span>
+                        </span>
+                        <span className="ops-tpl-card-tag">{t.taglineAr}</span>
+                        <span className="ops-tpl-card-desc">{t.descriptionAr}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* STEP 2 — data entry tabs */}
+            <div className="ops-tabs-label">
+              <span className="ops-tpl-stepnum" aria-hidden="true">٢</span>
+              بيانات الإجازة
+            </div>
+
             {/* Tabs */}
             <div className="ops-tabs" role="tablist" aria-label="أدوات الإصدار">
               <button
@@ -1245,7 +1362,7 @@ function DocumentPreview({ data }: { data: PortalSickLeaveRecord }) {
         className="doc-preview-scale"
         style={{ transform: `scale(${scale})`, height: 1123 * scale }}
       >
-        <SickLeaveDocument data={data} />
+        <TemplateDocument templateId={data.templateId} data={data} />
       </div>
     </div>
   );
@@ -1316,6 +1433,84 @@ function OpsPortalStyles() {
       .ops-tabpane {
         background: #fff; border: 1px solid #e4e9e6; border-radius: 16px;
         padding: clamp(16px, 2.5vw, 26px);
+      }
+
+      /* ── STEP 1: template picker (اختيار القالب) ── */
+      .ops-tpl-section { margin-bottom: 22px; }
+      .ops-tpl-head h3 {
+        margin: 0 0 4px; font-size: 16.5px; color: #101828; font-weight: 800;
+        display: flex; align-items: center; gap: 8px;
+      }
+      .ops-tpl-head p { margin: 0; font-size: 13px; color: #667085; line-height: 1.8; }
+      .ops-tpl-stepnum {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 24px; height: 24px; border-radius: 50%;
+        background: #0d5c3a; color: #fff; font-size: 13px; font-weight: 800;
+        flex-shrink: 0;
+      }
+      .ops-tabs-label {
+        display: flex; align-items: center; gap: 8px;
+        margin: 0 0 10px; font-size: 15px; font-weight: 800; color: #101828;
+      }
+      .ops-tpl-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+        gap: 14px; margin-top: 12px;
+      }
+      .ops-tpl-card {
+        display: flex; flex-direction: column; gap: 0; text-align: right;
+        padding: 10px; border: 2px solid #e4e9e6; border-radius: 14px;
+        background: #fff; cursor: pointer; font-family: inherit;
+        transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+      }
+      .ops-tpl-card:hover { border-color: #86c3a4; box-shadow: 0 4px 14px rgba(16, 24, 40, 0.08); }
+      .ops-tpl-card:active { transform: scale(0.99); }
+      .ops-tpl-card.selected {
+        border-color: #1b8354;
+        box-shadow: 0 0 0 3px rgba(27, 131, 84, 0.16), 0 6px 18px rgba(13, 92, 58, 0.14);
+      }
+      .ops-tpl-thumb {
+        display: flex; justify-content: center; padding: 4px 4px 0;
+      }
+      .ops-tpl-thumb-frame {
+        display: block; width: 186px; height: 263px; overflow: hidden;
+        position: relative; border-radius: 6px; border: 1px solid #e0e6e2;
+        background: #fff; direction: ltr; pointer-events: none;
+      }
+      /* 186 / 794 = 0.23426 — fixed mini scale of the real A4 sheet */
+      .ops-tpl-thumb-scale {
+        display: block; width: 794px; height: 1123px;
+        transform: scale(0.23426); transform-origin: top left;
+      }
+      .ops-tpl-card-body {
+        display: flex; flex-direction: column; gap: 4px; padding: 10px 6px 4px; min-width: 0;
+      }
+      .ops-tpl-card-name {
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        font-size: 14.5px; font-weight: 800; color: #101828;
+      }
+      .ops-tpl-card-check {
+        display: none; align-items: center; justify-content: center;
+        width: 20px; height: 20px; border-radius: 50%;
+        background: #067647; color: #fff; font-size: 12px; font-weight: 800;
+        flex-shrink: 0;
+      }
+      .ops-tpl-card.selected .ops-tpl-card-check { display: inline-flex; }
+      .ops-tpl-card.selected .ops-tpl-card-name { color: #067647; }
+      .ops-tpl-card-tag {
+        font-size: 11.5px; font-weight: 700; color: #0d5c3a;
+        background: #ecfdf3; border: 1px solid #abefc6; border-radius: 999px;
+        padding: 2px 9px; align-self: flex-start;
+      }
+      .ops-tpl-card-desc {
+        font-size: 11.5px; color: #667085; line-height: 1.7;
+        display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .ops-review-tpl-chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 7px 14px; border-radius: 999px;
+        background: #ecfdf3; border: 1px solid #abefc6; color: #067647;
+        font-size: 12.5px; font-weight: 800; white-space: nowrap;
       }
 
       /* ── Smart input tab ── */

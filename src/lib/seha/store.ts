@@ -62,6 +62,8 @@ export type SickLeaveRow = {
   nationalityEn: string | null;
   status: string;
   verificationCode: string;
+  /** Print-design template chosen at issuance (src/lib/seha/templates.ts). */
+  templateId: string;
   addQr: boolean;
   showLicense: boolean;
   reportTime: string | null;
@@ -179,6 +181,7 @@ type SupaRow = {
   nationality_en: string | null;
   status: string;
   verification_code: string;
+  template_id: string | null;
   add_qr: boolean;
   show_license: boolean;
   report_time: string | null;
@@ -216,6 +219,7 @@ function fromSupabase(r: SupaRow): SickLeaveRow {
     nationalityEn: r.nationality_en,
     status: r.status,
     verificationCode: r.verification_code,
+    templateId: r.template_id ?? "official",
     addQr: r.add_qr,
     showLicense: r.show_license,
     reportTime: r.report_time,
@@ -228,8 +232,37 @@ function fromSupabase(r: SupaRow): SickLeaveRow {
 
 const d = (v: Date | undefined) => (v instanceof Date ? v.toISOString() : v);
 
+/**
+ * Whether the live `sick_leaves` table has the `template_id` column yet.
+ * Probed once per process (module-level cache):
+ *   - column present  → every write persists the chosen template.
+ *   - column missing  → writes omit it (records still save fine) and reads
+ *     default to the official template; the moment the column is added
+ *     (supabase/schema.sql) persistence turns on automatically — no code
+ *     change, no failed saves, no restart needed.
+ */
+let supaTemplateIdColumn: boolean | null = null;
+
+async function hasTemplateIdColumn(cfg: SupabaseConfig): Promise<boolean> {
+  if (supaTemplateIdColumn !== null) return supaTemplateIdColumn;
+  try {
+    await rest(cfg, "sick_leaves", {
+      method: "GET",
+      query: [["select", "template_id"], ["limit", "1"]],
+    });
+    supaTemplateIdColumn = true;
+  } catch {
+    supaTemplateIdColumn = false;
+    console.warn(
+      "[supabase] sick_leaves.template_id column not present — template " +
+        "choice is kept for the session only. Run the ALTER in supabase/schema.sql to persist it."
+    );
+  }
+  return supaTemplateIdColumn;
+}
+
 /** camelCase row → snake_case JSON (full or partial). */
-function toSupabase(row: SickLeaveRow | SickLeaveUpdate): Record<string, unknown> {
+function toSupabase(row: SickLeaveRow | SickLeaveUpdate, withTemplateId = true): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if ("id" in row && row.id !== undefined) out.id = row.id;
   if (row.serviceCode !== undefined) out.service_code = row.serviceCode;
@@ -257,6 +290,7 @@ function toSupabase(row: SickLeaveRow | SickLeaveUpdate): Record<string, unknown
   if (row.nationalityEn !== undefined) out.nationality_en = row.nationalityEn;
   if (row.status !== undefined) out.status = row.status;
   if (row.verificationCode !== undefined) out.verification_code = row.verificationCode;
+  if (withTemplateId && row.templateId !== undefined) out.template_id = row.templateId;
   if (row.addQr !== undefined) out.add_qr = row.addQr;
   if (row.showLicense !== undefined) out.show_license = row.showLicense;
   if (row.reportTime !== undefined) out.report_time = row.reportTime;
@@ -376,7 +410,7 @@ function makeSupabaseStore(cfg: SupabaseConfig): SickLeaveStore {
       const rows = await rest<SupaRow[]>(cfg, "sick_leaves", {
         method: "POST",
         prefer: "return=representation",
-        body: toSupabase(row),
+        body: toSupabase(row, await hasTemplateIdColumn(cfg)),
       });
       const r = rows?.[0];
       if (!r) throw new Error("[supabase] insert returned no row");
@@ -388,7 +422,10 @@ function makeSupabaseStore(cfg: SupabaseConfig): SickLeaveStore {
         method: "PATCH",
         prefer: "return=representation",
         query: [["id", `eq.${id}`]],
-        body: { ...toSupabase(data), updated_at: new Date().toISOString() },
+        body: {
+          ...toSupabase(data, await hasTemplateIdColumn(cfg)),
+          updated_at: new Date().toISOString(),
+        },
       });
       const r = rows?.[0];
       if (!r) throw new Error(`[supabase] update: no row with id ${id}`);

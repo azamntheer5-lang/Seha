@@ -43,6 +43,7 @@ create table if not exists public.sick_leaves (
   nationality_en      text,
   status              text not null default 'ACTIVE',
   verification_code   text not null,
+  template_id         text not null default 'official',
   add_qr              boolean not null default false,
   show_license        boolean not null default true,
   report_time         text,
@@ -58,6 +59,13 @@ create index if not exists sick_leaves_status_idx on public.sick_leaves (status)
 create index if not exists sick_leaves_created_idx on public.sick_leaves (created_at);
 
 alter table public.sick_leaves enable row level security;
+
+-- Report-template choice (بوابة الإصدار: اختيار القالب عند إنشاء الإجازة).
+-- Idempotent: run on EXISTING deployments to activate template persistence —
+-- the app works without it too (it probes once and keeps the choice for the
+-- session), but with the column every issued record remembers its design.
+alter table public.sick_leaves
+  add column if not exists template_id text not null default 'official';
 
 create table if not exists public.inquiry_logs (
   id           bigint generated always as identity primary key,
