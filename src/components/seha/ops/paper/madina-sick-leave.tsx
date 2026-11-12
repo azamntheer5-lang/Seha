@@ -8,6 +8,7 @@
  */
 
 import { PAPER_FONT_CSS, usePaperData } from "./paper-shared";
+import { classifyHospital } from "@/lib/seha/hospital-branding";
 import type { PortalSickLeaveRecord } from "@/lib/seha/ops";
 
 const CSS = `${PAPER_FONT_CSS}
@@ -15,6 +16,8 @@ const CSS = `${PAPER_FONT_CSS}
   .mdn .hdr { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
   .mdn .hdr .side { width: 150px; flex-shrink: 0; text-align: center; }
   .mdn .hdr .side img { max-width: 100%; max-height: 62px; object-fit: contain; }
+  .mdn .hdr .side .bn-ar { font-size: 10.5px; font-weight: 700; margin-top: 2px; line-height: 1.3; }
+  .mdn .hdr .side .bn-en { font-size: 9.5px; font-weight: 700; font-family: 'SLAmiri', serif; line-height: 1.25; }
   .mdn .hdr .mid { flex: 1; text-align: center; line-height: 1.35; }
   .mdn .hdr .t-ar { font-size: 16px; font-weight: 700; }
   .mdn .hdr .t-en { font-size: 15px; font-weight: 700; font-family: 'SLAmiri', serif; }
@@ -55,6 +58,9 @@ function MRow({ en, ar, head, rule }: SRowProps) {
 export function MadinaSickLeaveDocument({ data }: { data: PortalSickLeaveRecord }) {
   const d = usePaperData(data);
   const days = d.leaveDays;
+  // Government → unified MOH emblem · Saudi German → its own lockup ·
+  // other private → own logo with the hospital name (AR + EN) beneath it.
+  const brand = classifyHospital(d.hospitalAr, d.hospitalEn);
 
   return (
     <div className="paper-sheet mdn">
@@ -71,13 +77,19 @@ export function MadinaSickLeaveDocument({ data }: { data: PortalSickLeaveRecord 
           <div className="t-en en">{d.serviceCode}</div>
         </div>
         <div className="side">
-          <img src="/assets/paper/facility-default.png" alt="شعار المستشفى" />
+          <img src={brand.logoSrc} alt="شعار المستشفى" />
+          {brand.showNameUnderLogo && (
+            <>
+              {brand.hospitalAr ? <div className="bn-ar ar">{brand.hospitalAr}</div> : null}
+              {brand.hospitalEn ? <div className="bn-en en">{brand.hospitalEn}</div> : null}
+            </>
+          )}
         </div>
       </header>
 
       <div className="intro">
         <div className="en">
-          Benefits {d.hospitalEn || "Madina National Hospital"}
+          Benefits {d.hospitalEn || "Saudi German Hospital"}
           <br />
           That the patient, {d.nameEn}, is the owner of
           <br />
@@ -87,7 +99,7 @@ export function MadinaSickLeaveDocument({ data }: { data: PortalSickLeaveRecord 
           {d.leaveToAr} as follows:
         </div>
         <div className="ar">
-          يفيد {d.hospitalAr || "مستشفى المدينة الوطني"}
+          يفيد {d.hospitalAr || "المستشفى السعودي الألماني"}
           <br />
           بان المريض {d.nameAr} صاحب
           <br />
