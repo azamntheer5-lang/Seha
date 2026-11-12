@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { LoginView } from "./login-view";
+import { routeToHash } from "./seha-types";
+import type { SehaRoute } from "./seha-types";
 
 /**
  * Header — exact 1:1 port of the extracted Sehaty markup:
@@ -9,6 +11,7 @@ import { LoginView } from "./login-view";
  *  - .header-inner (max-width 1280px): logo (right) / desktop nav (≥992px) / hamburger (left)
  *  - slide-out .navbar-collapse-drawer (left, 320px) with login button,
  *    nav links and a register link — identical to the extracted page.
+ * Every nav link now navigates the hash router (all buttons work).
  */
 
 /** Brand logo — the exact inline SVG from the extracted page (صحة / Seha By Lean). */
@@ -35,29 +38,23 @@ function BrandLogo() {
   );
 }
 
-const NAV_ITEMS: { key: string; label: string }[] = [
-  { key: "home", label: "الرئيسية" },
-  { key: "services", label: "الخدمات" },
-  { key: "seha-plus", label: "صحة بلس" },
-  { key: "inquiries", label: "الاستعلامات" },
-  { key: "faq", label: "الأسئلة الشائعة" },
-  { key: "contact", label: "تواصل معنا" },
+const NAV_ITEMS: { key: string; label: string; route: SehaRoute }[] = [
+  { key: "home", label: "الرئيسية", route: "home" },
+  { key: "services", label: "الخدمات", route: "services" },
+  { key: "seha-plus", label: "صحة بلس", route: "seha-plus" },
+  { key: "inquiries", label: "الاستعلامات", route: "inquiries" },
+  { key: "faq", label: "الأسئلة الشائعة", route: "faq" },
+  { key: "contact", label: "تواصل معنا", route: "contact" },
 ];
 
 export function SehaHeader({
   activeTab,
-  onTabClick,
-  onOpenInquiries,
-  onHome,
+  onNavigate,
 }: {
   /** currently highlighted nav key (e.g. "inquiries") */
   activeTab: string;
-  /** called with the nav key on every link click (visual active state) */
-  onTabClick: (key: string) => void;
-  /** navigate to the inquiries index view */
-  onOpenInquiries: () => void;
-  /** navigate back to the sick-leave enquiry (home of this replica) */
-  onHome: () => void;
+  /** navigate the hash router to a route */
+  onNavigate: (route: SehaRoute) => void;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
@@ -80,10 +77,9 @@ export function SehaHeader({
     return () => window.removeEventListener("keydown", onKey);
   }, [drawerOpen]);
 
-  /** Shared click behavior: set active tab; "inquiries" opens the index view. */
-  const handleNav = (key: string) => {
-    onTabClick(key);
-    if (key === "inquiries") onOpenInquiries();
+  /** Shared click behavior for desktop + drawer links. */
+  const handleNav = (item: (typeof NAV_ITEMS)[number]) => {
+    onNavigate(item.route);
     setDrawerOpen(false);
   };
 
@@ -100,11 +96,11 @@ export function SehaHeader({
           {/* الشعار جهة اليمين */}
           <a
             className="navbar-brand"
-            href="#/"
+            href={routeToHash("home")}
             title="منصة صحة"
             onClick={(e) => {
               e.preventDefault();
-              onHome();
+              onNavigate("home");
             }}
           >
             <div className="logo-svg">
@@ -118,11 +114,11 @@ export function SehaHeader({
               <a
                 key={item.key}
                 className={`nav-link${activeTab === item.key ? " active" : ""}`}
-                href={item.key === "inquiries" ? "#/inquiries" : "#/"}
+                href={routeToHash(item.route)}
                 aria-current={activeTab === item.key ? "page" : undefined}
                 onClick={(e) => {
                   e.preventDefault();
-                  handleNav(item.key);
+                  handleNav(item);
                 }}
               >
                 {item.label}
@@ -194,10 +190,10 @@ export function SehaHeader({
               <a
                 key={item.key}
                 className={`link nav-link${activeTab === item.key ? " active" : ""}`}
-                href={item.key === "inquiries" ? "#/inquiries" : "#/"}
+                href={routeToHash(item.route)}
                 onClick={(e) => {
                   e.preventDefault();
-                  handleNav(item.key);
+                  handleNav(item);
                 }}
               >
                 {item.label}
@@ -208,7 +204,7 @@ export function SehaHeader({
 
         <div className="drawer-footer-auth">
           <a
-            href="#/register"
+            href={routeToHash("home")}
             className="create-account-link"
             onClick={(e) => {
               e.preventDefault();
@@ -225,7 +221,7 @@ export function SehaHeader({
           onClose={() => setLoginOpen(false)}
           onHome={() => {
             setLoginOpen(false);
-            onHome();
+            onNavigate("home");
           }}
         />
       )}

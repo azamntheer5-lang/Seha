@@ -1,6 +1,6 @@
 "use client";
 
-import type { SehaView } from "./seha-types";
+import type { SehaRoute } from "./seha-types";
 
 /**
  * Inquiries index — 1:1 port of the reference /inquiries page:
@@ -43,8 +43,8 @@ function InquiryDocIcon() {
 type InquiryCardData = {
   title: string;
   description: string;
-  /** internal view to open, or null for external/unavailable */
-  view: SehaView | null;
+  /** internal route to open, or null for external/unavailable */
+  view: SehaRoute | null;
   external?: boolean;
 };
 

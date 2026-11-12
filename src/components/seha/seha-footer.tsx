@@ -69,14 +69,38 @@ function AccessibilityIcon() {
   );
 }
 
-/** No-op handler for pages that are not part of this replica. */
-const noop = (e: React.MouseEvent) => e.preventDefault();
+import { routeToHash } from "./seha-types";
+import type { SehaRoute } from "./seha-types";
 
+/** In-app router link (exact reference hrefs preserved). */
+function RLink({
+  route,
+  onNavigate,
+  children,
+}: {
+  route: SehaRoute;
+  onNavigate: (route: SehaRoute) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <a
+      href={routeToHash(route)}
+      onClick={(e) => {
+        e.preventDefault();
+        onNavigate(route);
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
+/** Footer links — every entry navigates the hash router (nothing is dead). */
 export function SehaFooter({
-  onOpenInquiries,
+  onNavigate,
   onOpenA11y,
 }: {
-  onOpenInquiries: () => void;
+  onNavigate: (route: SehaRoute) => void;
   onOpenA11y: () => void;
 }) {
   return (
@@ -88,19 +112,13 @@ export function SehaFooter({
             <h3 className="heading">عن صحة</h3>
             <ul className="links-wrapper">
               <li>
-                <a href="#/about" onClick={noop}>
-                  عن صحة
-                </a>
+                <RLink route="home" onNavigate={onNavigate}>عن صحة</RLink>
               </li>
               <li>
-                <a href="#/ecosystem" onClick={noop}>
-                  المنظومة الصحية
-                </a>
+                <RLink route="home" onNavigate={onNavigate}>المنظومة الصحية</RLink>
               </li>
               <li>
-                <a href="#/partners" onClick={noop}>
-                  شركاؤنا
-                </a>
+                <RLink route="home" onNavigate={onNavigate}>شركاؤنا</RLink>
               </li>
             </ul>
           </div>
@@ -110,35 +128,19 @@ export function SehaFooter({
             <h3 className="heading">الخدمات و المعلومات</h3>
             <ul className="links-wrapper footer-services__list">
               <li>
-                <a href="#/cms/services" onClick={noop}>
-                  الخدمات
-                </a>
+                <RLink route="services" onNavigate={onNavigate}>الخدمات</RLink>
               </li>
               <li>
-                <a href="#/seha-plus" onClick={noop}>
-                  صحة بلس
-                </a>
+                <RLink route="seha-plus" onNavigate={onNavigate}>صحة بلس</RLink>
               </li>
               <li>
-                <a
-                  href="#/inquiries"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    onOpenInquiries();
-                  }}
-                >
-                  الاستعلامات
-                </a>
+                <RLink route="inquiries" onNavigate={onNavigate}>الاستعلامات</RLink>
               </li>
               <li>
-                <a href="#/faq" onClick={noop}>
-                  الأسئلة الشائعة
-                </a>
+                <RLink route="faq" onNavigate={onNavigate}>الأسئلة الشائعة</RLink>
               </li>
               <li>
-                <a href="#/environmental-impact" onClick={noop}>
-                  الأثر البيئي
-                </a>
+                <RLink route="home" onNavigate={onNavigate}>الأثر البيئي</RLink>
               </li>
             </ul>
           </div>
@@ -229,15 +231,9 @@ export function SehaFooter({
             <p>منصة صحة معتمدة من قبل وزارة الصحة © 2026</p>
             <p>بدعم وتطوير لين لخدمات الأعمال</p>
             <div className="policy-links">
-              <a href="#/usage-guide" onClick={noop}>
-                دليل الاستخدام
-              </a>
-              <a href="#/terms" onClick={noop}>
-                الشروط والأحكام
-              </a>
-              <a href="#/privacy" onClick={noop}>
-                سياسة الخصوصية
-              </a>
+              <RLink route="home" onNavigate={onNavigate}>دليل الاستخدام</RLink>
+              <RLink route="home" onNavigate={onNavigate}>الشروط والأحكام</RLink>
+              <RLink route="home" onNavigate={onNavigate}>سياسة الخصوصية</RLink>
             </div>
           </div>
         </div>
