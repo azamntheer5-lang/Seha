@@ -25,6 +25,51 @@
  */
 
 import { db } from "@/lib/db";
+
+// ───────────────────────────────────────────────────────────────────────────
+// Auto-retention — keep the store tiny under daily use.
+// Any PORTAL-issued leave older than RETENTION_DAYS is purged automatically
+// (demo "seed" rows are exempt so the public demo verification flow never
+// breaks). Runs lazily on insert/listRecent, throttled to once per hour per
+// process — negligible cost, table never grows past ~200 rows at 20/day.
+// ───────────────────────────────────────────────────────────────────────────
+
+export const RETENTION_DAYS = 10;
+
+let lastPurgeAt = 0;
+const PURGE_INTERVAL_MS = 60 * 60 * 1000;
+
+async function purgeSupabaseExpired(cfg: SupabaseConfig): Promise<void> {
+  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  await rest(cfg, "sick_leaves", {
+    method: "DELETE",
+    query: [
+      ["source", "eq.portal"],
+      ["created_at", `lt.${cutoff}`],
+    ],
+  });
+}
+
+async function purgeSqliteExpired(): Promise<void> {
+  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  await db.sickLeave.deleteMany({
+    where: { source: "portal", createdAt: { lt: cutoff } },
+  });
+}
+
+/** Best-effort retention sweep (never throws, throttled hourly). */
+export async function purgeExpiredLeaves(force = false): Promise<void> {
+  const now = Date.now();
+  if (!force && now - lastPurgeAt < PURGE_INTERVAL_MS) return;
+  lastPurgeAt = now;
+  const cfg = getSupabaseConfig();
+  try {
+    if (cfg) await purgeSupabaseExpired(cfg);
+    else await purgeSqliteExpired();
+  } catch (error) {
+    console.error("[store] retention purge failed:", error);
+  }
+}
 import {
   getMirroredSickLeave,
   fromMirror,
@@ -118,10 +163,12 @@ export const sqliteStore: SickLeaveStore = {
   },
 
   async listRecent(limit = 100) {
+    void purgeExpiredLeaves(); // fire-and-forget retention sweep
     return db.sickLeave.findMany({ orderBy: { createdAt: "desc" }, take: limit });
   },
 
   async insert(row) {
+    void purgeExpiredLeaves(); // fire-and-forget retention sweep
     return db.sickLeave.create({ data: row });
   },
 
@@ -356,7 +403,7 @@ async function rest<T>(
   cfg: SupabaseConfig,
   table: string,
   init: {
-    method: "GET" | "POST" | "PATCH";
+    method: "GET" | "POST" | "PATCH" | "DELETE";
     body?: unknown;
     prefer?: string;
     query?: [string, string][];
@@ -413,6 +460,7 @@ function makeSupabaseStore(cfg: SupabaseConfig): SickLeaveStore {
     },
 
     async listRecent(limit = 100) {
+      void purgeExpiredLeaves(); // fire-and-forget retention sweep
       const rows = await rest<SupaRow[]>(cfg, "sick_leaves", {
         method: "GET",
         query: [["order", "created_at.desc"], ["limit", String(Math.max(1, Math.min(limit, 500)))]],
@@ -421,6 +469,7 @@ function makeSupabaseStore(cfg: SupabaseConfig): SickLeaveStore {
     },
 
     async insert(row) {
+      void purgeExpiredLeaves(); // fire-and-forget retention sweep
       const rows = await rest<SupaRow[]>(cfg, "sick_leaves", {
         method: "POST",
         prefer: "return=representation",
