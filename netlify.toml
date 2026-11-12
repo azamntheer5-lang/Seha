@@ -20,19 +20,28 @@
 # SUPABASE — ACTIVE durable cloud storage
 #
 # The project's tables (sick_leaves + inquiry_logs, RLS-locked, 8 seed rows)
-# were created with supabase/schema.sql. With both variables below present,
-# every API route stores sick leaves in this shared cloud database: saves
-# never get lost, verification works from any serverless instance, and every
-# device (local dev + Netlify) sees the same records instantly.
+# were created with supabase/schema.sql. With both SUPABASE_URL and
+# SUPABASE_SERVICE_KEY present, every API route stores sick leaves in this
+# shared cloud database: saves never get lost, verification works from any
+# serverless instance, and every device (local dev + Netlify) sees the same
+# records instantly.
 #
-# NOTE: SUPABASE_SERVICE_KEY is the project's SECRET key, base64-encoded
-# (`printf %s 'sb_secret_…' | base64`) because GitHub push protection
-# blocks pushes that contain the raw sb_secret_ pattern in this public
-# repository — src/lib/seha/store.ts decodes it at runtime (raw keys are
-# accepted too). To rotate: create a fresh key in the Supabase dashboard
-# and paste its base64 here, then redeploy. If you prefer keeping the key
-# out of the repo entirely: put both values in the Netlify UI (Site
-# configuration → Environment variables) and remove them from here.
+# ⚠⚠ THE SECRET KEY MUST NEVER LIVE IN THIS FILE ⚠⚠
+# Netlify's post-build SECRETS SCANNER inspects every file that gets traced
+# into the serverless bundle — including netlify.toml itself — and FAILS the
+# whole build ("Secrets scanning found secrets in build", exit code 2) when
+# it finds a real key (even base64-encoded). The values are therefore set as
+# site-level ENVIRONMENT VARIABLES in the Netlify UI (Site configuration →
+# Environment variables), which are injected at build+runtime and are NOT
+# files, so they are never scanned:
+#
+#   SUPABASE_URL          https://bliznhxqefqjehtefqli.supabase.co
+#   SUPABASE_SERVICE_KEY  the project's SECRET key (sb_secret_… or legacy
+#                         service-role JWT; raw form, no base64 needed —
+#                         src/lib/seha/store.ts accepts both)
+#
+# Do NOT paste secret values back into this file, README.md or any other
+# tracked file: the scanner bundles and inspects them all.
 # ─────────────────────────────────────────────────────────────────────────────
 
 [build.environment]
@@ -43,16 +52,12 @@
   DATABASE_URL = "file:../db/custom.db"
 
 # Runtime environment for the serverless API functions (production + previews).
-# SUPABASE_* activates the durable cloud store — see src/lib/seha/store.ts.
+# SUPABASE_* comes from the Netlify UI env vars — see the big warning above.
 [context.production.environment]
   DATABASE_URL = "file:../db/custom.db"
-  SUPABASE_URL = "https://bliznhxqefqjehtefqli.supabase.co"
-  SUPABASE_SERVICE_KEY = "c2Jfc2VjcmV0X0NKLXk4Wk1IcGdLeW9haWh0MjhQdFFfdnpoUzZ6YVE="
 
 [context.deploy-preview.environment]
   DATABASE_URL = "file:../db/custom.db"
-  SUPABASE_URL = "https://bliznhxqefqjehtefqli.supabase.co"
-  SUPABASE_SERVICE_KEY = "c2Jfc2VjcmV0X0NKLXk4Wk1IcGdLeW9haWh0MjhQdFFfdnpoUzZ6YVE="
 
 # Belt-and-suspenders: guarantee the SQLite DB + generated Prisma client
 # (query engines) are packaged inside every serverless function bundle.
