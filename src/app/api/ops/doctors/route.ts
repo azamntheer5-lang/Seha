@@ -4,7 +4,6 @@ import {
   allHospitals,
   doctorsForHospital,
   learnDoctor,
-  seedDirectoryOnce,
 } from "@/lib/seha/doctor-directory";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
@@ -28,7 +27,6 @@ export async function GET(request: NextRequest) {
     }
 
     const hospital = (params.get("hospital") ?? "").trim();
-    await seedDirectoryOnce();
     const data = hospital
       ? { doctors: await doctorsForHospital(hospital) }
       : { hospitals: await allHospitals() };

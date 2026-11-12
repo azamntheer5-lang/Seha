@@ -17,7 +17,6 @@ import { useMemo } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import { NameSpan } from "./name-wrap";
 import type { PortalSickLeaveRecord } from "@/lib/seha/ops";
-import { hospitalLogoUrl } from "@/lib/seha/hospital-directory";
 
 const pad2 = (n: string) => String(n).padStart(2, "0");
 
@@ -135,7 +134,7 @@ export function SickLeaveDocument({ data }: { data: PortalSickLeaveRecord }) {
       <div className="sl-head">
         <div className="sl-header-logos">
           <div className="sl-logo-seha">
-            <img style={{ height: 80, width: "auto" }} src={data.logoUrl || hospitalLogoUrl(data.hospital)} alt="شعار المنشأة الصحية" />
+            <img style={{ height: 80, width: "auto" }} src="/assets/pdf/seha-logo.jpg" alt="Seha logo" />
           </div>
           <div className="sl-logo-ksa">
             <img style={{ height: 54, width: "auto" }} src="/assets/pdf/ksa-emblem.jpg" alt="Kingdom of Saudi Arabia emblem" />

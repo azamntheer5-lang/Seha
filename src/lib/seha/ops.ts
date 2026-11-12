@@ -138,6 +138,4 @@ export type PortalSickLeaveRecord = PortalSickLeaveInput & {
   reportDate: string;
   verificationCode: string;
   createdAt: string;
-  /** Client-only: certificate facility logo (custom upload or directory SVG). */
-  logoUrl?: string;
 };
