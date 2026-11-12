@@ -40,8 +40,29 @@ const KSA_HOSPITALS: Array<{ ar: string; en: string }> = [
 
 const MALE_NAMES = ["خالد", "عبدالله", "محمد", "سعد", "فهد", "ناصر", "سلطان", "منصور", "ماجد", "تركي", "بندر", "عبدالعزيز", "أحمد", "يوسف", "عمر"];
 const FEMALE_NAMES = ["فاطمة", "سارة", "نورة", "أمل", "ريم", "هند", "لطيفة", "منى", "العنود", "جواهر"];
-const FATHERS = ["بن سعد", "بن عبدالله", "بن محمد", "بن ناصر", "بن سلطان", "بن عبدالعزيز", "بن خالد", "بن فهد", "بن سليمان", "بنت عبدالله", "بنت محمد", "بنت سعد"];
+const FIRST_EN: Record<string, string> = {
+  خالد: "KHALED", عبدالله: "ABDULLAH", محمد: "MOHAMMED", سعد: "SAAD", فهد: "FAHAD",
+  ناصر: "NASSER", سلطان: "SULTAN", منصور: "MANSOUR", ماجد: "MAJED", تركي: "TURKI",
+  بندر: "BANDAR", عبدالعزيز: "ABDULAZIZ", أحمد: "AHMED", يوسف: "YOUSIF", عمر: "OMAR",
+  فاطمة: "FATIMAH", سارة: "SARAH", نورة: "NOURAH", أمل: "AMAL", ريم: "REEM",
+  هند: "HIND", لطيفة: "LATIFAH", منى: "MUNA", العنود: "ALANOUD", جواهر: "JAWAHIR",
+};
+const MALE_FATHERS = ["بن سعد", "بن عبدالله", "بن محمد", "بن ناصر", "بن سلطان", "بن عبدالعزيز", "بن خالد", "بن فهد", "بن سليمان"];
+const FEMALE_FATHERS = ["بنت عبدالله", "بنت محمد", "بنت سعد", "بنت خالد", "بنت ناصر"];
+const FATHER_EN: Record<string, string> = {
+  "بن سعد": "BIN SAAD", "بن عبدالله": "BIN ABDULLAH", "بن محمد": "BIN MOHAMMED",
+  "بن ناصر": "BIN NASSER", "بن سلطان": "BIN SULTAN", "بن عبدالعزيز": "BIN ABDULAZIZ",
+  "بن خالد": "BIN KHALED", "بن فهد": "BIN FAHAD", "بن سليمان": "BIN SULAIMAN",
+  "بنت عبدالله": "BINT ABDULLAH", "بنت محمد": "BINT MOHAMMED", "بنت سعد": "BINT SAAD",
+  "بنت خالد": "BINT KHALED", "بنت ناصر": "BINT NASSER",
+};
 const FAMILIES = ["الحربي", "القحطاني", "العتيبي", "الشمري", "الدوسري", "الغامدي", "الزهراني", "المطيري", "السبيعي", "البقمي", "الرشيدي", "الشهري", "الفيفي", "الهاجري"];
+const FAMILY_EN: Record<string, string> = {
+  الحربي: "ALHARBI", القحطاني: "ALQAHTANI", العتيبي: "ALOTAIBI", الشمري: "ALSHAMMARI",
+  الدوسري: "ALDOSARI", الغامدي: "ALGHAMDI", الزهراني: "ALZAHRANI", المطيري: "ALMUTAIRI",
+  السبيعي: "ALSUBAIE", البقمي: "ALBUQAMI", الرشيدي: "ALRASHIDI", الشهري: "ALSHAHRANI",
+  الفيفي: "ALFAIFI", الهاجري: "ALHAJRI",
+};
 const TITLES: Array<{ ar: string; en: string }> = [
   { ar: "طبيب عام", en: "General Practitioner" },
   { ar: "استشاري طب أسرة", en: "Family Medicine Consultant" },
@@ -52,8 +73,6 @@ const TITLES: Array<{ ar: string; en: string }> = [
 ];
 
 const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
-
-const enName = (first: string) => first.toUpperCase();
 
 function generateLocally(hospital: string): { hospital: { ar: string; en: string }; doctors: AiDoctor[] } {
   const matched = hospital
@@ -66,7 +85,7 @@ function generateLocally(hospital: string): { hospital: { ar: string; en: string
   while (doctors.length < 5) {
     const female = Math.random() < 0.35;
     const first = female ? pick(FEMALE_NAMES) : pick(MALE_NAMES);
-    const father = female ? "بنت " + pick(["عبدالله", "محمد", "سعد", "خالد"]) : pick(FATHERS);
+    const father = female ? pick(FEMALE_FATHERS) : pick(MALE_FATHERS);
     const family = pick(FAMILIES);
     const nameAr = `د. ${first} ${father} ${family}`;
     if (used.has(nameAr)) continue;
@@ -74,7 +93,7 @@ function generateLocally(hospital: string): { hospital: { ar: string; en: string
     const title = pick(TITLES);
     doctors.push({
       nameAr,
-      nameEn: `DR. ${enName(first)} ${father.startsWith("بن") ? "BIN" : "BINT"} ${family.toUpperCase()}`,
+      nameEn: `DR. ${FIRST_EN[first] ?? first.toUpperCase()} ${FATHER_EN[father] ?? ""} ${FAMILY_EN[family] ?? family.toUpperCase()}`.replace(/\s+/g, " ").trim(),
       titleAr: title.ar,
       titleEn: title.en.toUpperCase(),
     });
