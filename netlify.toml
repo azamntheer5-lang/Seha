@@ -30,17 +30,18 @@
 # Netlify's post-build SECRETS SCANNER inspects every file that gets traced
 # into the serverless bundle — including netlify.toml itself — and FAILS the
 # whole build ("Secrets scanning found secrets in build", exit code 2) when
-# it finds a real key (even base64-encoded). The values are therefore set as
-# site-level ENVIRONMENT VARIABLES in the Netlify UI (Site configuration →
-# Environment variables), which are injected at build+runtime and are NOT
-# files, so they are never scanned:
+# it finds a real Supabase URL or key value in ANY line, even inside
+# comments. The values are therefore set as site-level ENVIRONMENT VARIABLES
+# in the Netlify UI (Site configuration → Environment variables — or via
+# `netlify env:set`), which are injected at build+runtime and are NOT files,
+# so they are never scanned:
 #
-#   SUPABASE_URL          https://bliznhxqefqjehtefqli.supabase.co
+#   SUPABASE_URL          https://<project-ref>.supabase.co   ← your project URL
 #   SUPABASE_SERVICE_KEY  the project's SECRET key (sb_secret_… or legacy
 #                         service-role JWT; raw form, no base64 needed —
 #                         src/lib/seha/store.ts accepts both)
 #
-# Do NOT paste secret values back into this file, README.md or any other
+# Do NOT paste real values back into this file, README.md or any other
 # tracked file: the scanner bundles and inspects them all.
 # ─────────────────────────────────────────────────────────────────────────────
 
