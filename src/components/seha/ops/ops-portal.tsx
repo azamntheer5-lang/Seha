@@ -39,23 +39,36 @@ import {
 
 const SESSION_KEY = "seha_ops_code";
 
+/**
+ * Module-level mirror of the access code — set the moment the operator
+ * unlocks the portal. sessionStorage can be dropped mid-session (embedded
+ * preview contexts, private mode, iframe remounts) which used to make every
+ * save fail with 403 «رمز الدخول غير صالح». With this fallback the code
+ * survives as long as the page is open, so saving ALWAYS works.
+ */
+let lastKnownCode: string | null = null;
+
 export function getStoredOpsCode(): string | null {
   try {
-    return sessionStorage.getItem(SESSION_KEY);
+    const stored = sessionStorage.getItem(SESSION_KEY);
+    if (stored) return stored;
   } catch {
-    return null;
+    /* fall through to the module mirror */
   }
+  return lastKnownCode;
 }
 
 export function storeOpsCode(code: string) {
+  lastKnownCode = code;
   try {
     sessionStorage.setItem(SESSION_KEY, code);
   } catch {
-    /* private mode — ignore */
+    /* private mode — the module mirror still holds it */
   }
 }
 
 export function clearOpsCode() {
+  lastKnownCode = null;
   try {
     sessionStorage.removeItem(SESSION_KEY);
   } catch {
@@ -298,6 +311,7 @@ export function OpsPortal({
         method: "POST",
         headers: { "Content-Type": "application/json", "x-access-code": code },
         body: JSON.stringify({
+          accessCode: code,
           serviceCode: form.serviceCode.trim(),
           patientId: form.patientId.trim(),
           patientName: form.patientName.trim(),
@@ -368,8 +382,9 @@ export function OpsPortal({
     async (rec: PortalSickLeaveRecord) => {
       setSaveState("saving");
       setSaveError("");
-      const payload: PortalSickLeaveInput & { id: string } = {
+      const payload: (PortalSickLeaveInput & { id: string; accessCode?: string }) = {
         id: rec.id,
+        accessCode: getStoredOpsCode() ?? "",
         serviceCode: rec.serviceCode,
         patientId: rec.patientId,
         patientName: rec.patientName,

@@ -16,10 +16,14 @@ datasource db {
 }
 
 // Sick leave certificates issued by health facilities.
-// serviceCode + patientId form the public lookup key pair.
+// (serviceCode, patientId) is the PUBLIC lookup pair — the inquiry page asks
+// for both, so the service code alone does not need global uniqueness. This
+// lets an operator re-issue the exact same code for the same patient (update
+// in place) and freely pick codes without clashing with other patients'
+// certificates.
 model SickLeave {
   id               String   @id @default(cuid())
-  serviceCode      String   @unique // رمز الخدمة (PSL261…, GSL261… or SL-2025-…)
+  serviceCode      String // رمز الخدمة (PSL261…, GSL261… or SL-2025-…)
   patientId        String // رقم الهوية / الإقامة (10 digits)
   patientName      String // الاسم (عربي)
   patientNameEn    String? // الاسم (إنجليزي)
@@ -52,6 +56,7 @@ model SickLeave {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  @@unique([serviceCode, patientId])
   @@index([patientId, serviceCode])
   @@index([status])
   @@index([createdAt])

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { SickLeave } from "@prisma/client";
 import { db } from "@/lib/db";
 import { normalizeServiceCode, maskId } from "@/lib/saudi-id";
 import {
@@ -11,6 +12,7 @@ import {
   relationshipLabel,
   type InquiryResponse,
 } from "@/lib/seha/domain";
+import { getMirroredSickLeave, fromMirror } from "@/lib/seha/blob-store";
 
 export const dynamic = "force-dynamic";
 
@@ -79,9 +81,65 @@ export async function GET(request: NextRequest) {
     }
 
     // ---- 3. Lookup ----------------------------------------------------
-    const record = await db.sickLeave.findFirst({
+    // 3a. Local SQLite (bundled seeds + anything issued on this instance).
+    let record = await db.sickLeave.findFirst({
       where: { serviceCode, patientId },
     });
+
+    // 3b. Durable mirror (Netlify Blobs) — portal-issued records live there
+    //     so they survive instance recycling. On a hit we also hydrate the
+    //     local store so subsequent lookups (and operator edits) are served
+    //     straight from SQLite.
+    if (!record) {
+      const mirrored = await getMirroredSickLeave(serviceCode);
+      if (mirrored && mirrored.patientId === patientId) {
+        record = fromMirror(mirrored);
+        try {
+          const row = fromMirror(mirrored);
+          await db.sickLeave.upsert({
+            where: { serviceCode_patientId: { serviceCode, patientId } },
+            create: {
+              id: row.id,
+              serviceCode: row.serviceCode,
+              patientId: row.patientId,
+              patientName: row.patientName,
+              patientNameEn: row.patientNameEn,
+              patientPhone: row.patientPhone,
+              companionName: row.companionName,
+              relationship: row.relationship,
+              sickLeaveDate: row.sickLeaveDate,
+              dateFrom: row.dateFrom,
+              dateTo: row.dateTo,
+              dateFromHijri: row.dateFromHijri,
+              dateToHijri: row.dateToHijri,
+              durationDays: row.durationDays,
+              doctorName: row.doctorName,
+              doctorNameEn: row.doctorNameEn,
+              doctorJobTitle: row.doctorJobTitle,
+              doctorJobTitleEn: row.doctorJobTitleEn,
+              hospital: row.hospital,
+              hospitalEn: row.hospitalEn,
+              licenseNumber: row.licenseNumber,
+              employerAr: row.employerAr,
+              nationalityAr: row.nationalityAr,
+              nationalityEn: row.nationalityEn,
+              status: row.status,
+              verificationCode: row.verificationCode,
+              addQr: row.addQr,
+              showLicense: row.showLicense,
+              reportTime: row.reportTime,
+              reportDate: row.reportDate,
+              source: row.source,
+              createdAt: row.createdAt,
+              updatedAt: row.updatedAt,
+            },
+            update: {},
+          });
+        } catch {
+          /* hydration is an optimization only — the mirror answer stands */
+        }
+      }
+    }
 
     await logInquiry({
       serviceCode,
