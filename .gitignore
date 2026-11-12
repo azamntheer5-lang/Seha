@@ -48,3 +48,11 @@ next-env.d.ts
 # prisma generated client
 node_modules/.prisma
 node_modules/@prisma/client
+
+# sandbox working artifacts — never deploy these (they bloat the traced
+# serverless bundle and have nothing to do with the app)
+/upload/
+/skills/
+/download/
+/.netlify/
+/netlify.toml.bak

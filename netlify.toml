@@ -9,6 +9,13 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# TEMPORARY diagnostics plugin (local, from this repo): captures the real
+# build error inside the Netlify build container and posts it to Supabase
+# (inquiry_logs, service_code DIAG-*) because the API does not expose build
+# logs. Remove once the recurring "exit code 2" failure is root-caused.
+[[plugins]]
+  package = "/plugins/build-diagnostics"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # SUPABASE — ACTIVE durable cloud storage
 #

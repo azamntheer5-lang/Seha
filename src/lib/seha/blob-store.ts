@@ -42,10 +42,12 @@ function getBlobStore(): Promise<BlobStoreLike | null> {
   if (!storePromise) {
     storePromise = (async () => {
       try {
-        const mod = (await import("@netlify/blobs")) as {
-          getStore: (name: string) => Promise<BlobStoreLike>;
+        // `getStore` returns a Store (v11+) or a Promise of one (older majors)
+        // depending on the installed @netlify/blobs version — accept both.
+        const mod = (await import("@netlify/blobs")) as unknown as {
+          getStore: (name: string) => Promise<BlobStoreLike> | BlobStoreLike;
         };
-        const store = await mod.getStore(STORE_NAME);
+        const store = (await Promise.resolve(mod.getStore(STORE_NAME))) as BlobStoreLike | null;
         if (!store || typeof store.setJSON !== "function") return null;
         return store;
       } catch (error) {
