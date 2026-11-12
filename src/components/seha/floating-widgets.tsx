@@ -1,133 +1,110 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef } from "react";
 
 /**
- * Floating widgets — replicas of the reference page:
- *  1. UserWay-style accessibility button (blue circle, bottom-left).
- *  2. AI assistant launcher pill (pinwheel + chat bubble, bottom-right)
- *     with the "اسأل مساعد صحة" label.
+ * Floating widgets — exact port of the extracted page:
+ *  #userwayAccessibilityIcon (fixed bottom-left, #005A9C circle)
+ *  + .a11y-popover with two working options:
+ *    تكبير حجم الخط (body.a11y-large-text → 112%)
+ *    تباين ألوان عالٍ (body.a11y-high-contrast → contrast 1.25)
+ * The popover state is lifted to SehaApp so the footer a11y button
+ * can open it too — exactly like the reference wiring.
  */
+export function FloatingWidgets({
+  popoverOpen,
+  onTogglePopover,
+  largeText,
+  onToggleLargeText,
+  highContrast,
+  onToggleContrast,
+}: {
+  popoverOpen: boolean;
+  onTogglePopover: () => void;
+  largeText: boolean;
+  onToggleLargeText: () => void;
+  highContrast: boolean;
+  onToggleContrast: () => void;
+}) {
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLDivElement | null>(null);
 
-/** Accessibility person glyph (UserWay style). */
-function AccessibilityGlyph() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="4.5" r="2.2" fill="currentColor" stroke="none" />
-      <path d="M4 8.5c2.7.9 5.4 1.4 8 1.4s5.3-.5 8-1.4" />
-      <path d="M12 9.9v5" />
-      <path d="M12 14.9 8.5 21" />
-      <path d="M12 14.9 15.5 21" />
-    </svg>
-  );
-}
-
-/** Chat bubble with dots — the reference assistant glyph. */
-function ChatDotsGlyph() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-      <circle cx="8.5" cy="11.5" r="0.5" fill="currentColor" />
-      <circle cx="12" cy="11.5" r="0.5" fill="currentColor" />
-      <circle cx="15.5" cy="11.5" r="0.5" fill="currentColor" />
-    </svg>
-  );
-}
-
-/** Pinwheel/fan glyph for the assistant badge. */
-function PinwheelGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 12c0-4 1.6-6.5 4-7.5 2.6-1.1 5.5.4 6 3.2.4 2.4-1.2 4.3-3.6 4.6-2.5.3-4.9-.5-6.4-.3Z"
-        fill="rgba(255,255,255,0.95)"
-      />
-      <path
-        d="M12 12c-4 0-6.5-1.6-7.5-4-1.1-2.6.4-5.5 3.2-6 2.4-.4 4.3 1.2 4.6 3.6.3 2.5-.5 4.9.9 6.4Z"
-        fill="rgba(255,255,255,0.8)"
-      />
-      <path
-        d="M12 12c0 4-1.6 6.5-4 7.5-2.6 1.1-5.5-.4-6-3.2-.4-2.4 1.2-4.3 3.6-4.6 2.5-.3 4.9.5 6.4-.9Z"
-        fill="rgba(255,255,255,0.65)"
-      />
-      <path
-        d="M12 12c4 0 6.5 1.6 7.5 4 1.1 2.6-.4 5.5-3.2 6-2.4.4-4.3-1.2-4.6-3.6-.3-2.5.5-4.9-.9-6.4Z"
-        fill="rgba(255,255,255,0.5)"
-      />
-    </svg>
-  );
-}
-
-export function FloatingWidgets() {
-  const [chatOpen, setChatOpen] = useState(false);
+  // Close on Escape / outside click — senior stability hardening.
+  useEffect(() => {
+    if (!popoverOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onTogglePopover();
+    };
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(target)
+      ) {
+        onTogglePopover();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onClick);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onClick);
+    };
+  }, [popoverOpen, onTogglePopover]);
 
   return (
     <>
-      {/* Accessibility widget (UserWay-style) */}
-      <button
-        type="button"
-        className="uw-widget"
-        aria-label="قائمة الوصول"
-        onClick={() =>
-          window.alert("أدوات الوصول قيد التجهيز في هذه النسخة التجريبية.")
-        }
+      {/* زر الإتاحة والوصول العائم */}
+      <div
+        id="userwayAccessibilityIcon"
+        className="uai userway_dark"
+        role="button"
+        tabIndex={0}
+        aria-label="خيارات الإتاحة والوصول"
+        aria-expanded={popoverOpen}
+        ref={buttonRef}
+        onClick={onTogglePopover}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onTogglePopover();
+          }
+        }}
       >
-        <AccessibilityGlyph />
-      </button>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+          <circle cx="12" cy="4.5" r="2" />
+          <path d="M5 9.5h14" />
+          <path d="M10 9.5v10" />
+          <path d="M14 9.5v10" />
+        </svg>
+      </div>
 
-      {/* AI assistant launcher */}
-      <div className="assistant-widget">
-        {chatOpen && (
-          <div
-            className="assistant-widget__pill"
-            style={{ padding: "10px 14px", gap: 10 }}
-            role="status"
-          >
-            <span style={{ fontSize: 13, color: "#384250" }}>
-              مساعد صحة الذكي قيد التجهيز
-            </span>
-          </div>
-        )}
-        <div className="assistant-widget__pill">
-          <button
-            type="button"
-            className="assistant-widget__chat"
-            aria-label="اسأل مساعد صحة"
-            aria-expanded={chatOpen}
-            onClick={() => setChatOpen((v) => !v)}
-          >
-            <ChatDotsGlyph />
-          </button>
-          <span className="assistant-widget__pinwheel" aria-hidden="true">
-            <PinwheelGlyph />
-          </span>
-        </div>
-        <span className="assistant-widget__label">
-          Powered by{" "}
-          <a href="#" onClick={(e) => e.preventDefault()}>
-            ElevenLabs Agents
-          </a>
-        </span>
+      {/* قائمة خيارات الإتاحة المنبثقة */}
+      <div className={`a11y-popover${popoverOpen ? " show" : ""}`} id="a11yPopover" ref={popoverRef} role="dialog" aria-label="أدوات الإتاحة والوصول">
+        <h4>أدوات الإتاحة والوصول</h4>
+        <button
+          type="button"
+          className={`a11y-option-btn${largeText ? " active" : ""}`}
+          id="toggleLargeTextBtn"
+          aria-pressed={largeText}
+          onClick={onToggleLargeText}
+        >
+          <span>تكبير حجم الخط</span>
+          <span>A+</span>
+        </button>
+        <button
+          type="button"
+          className={`a11y-option-btn${highContrast ? " active" : ""}`}
+          id="toggleContrastBtn"
+          aria-pressed={highContrast}
+          onClick={onToggleContrast}
+        >
+          <span>تباين ألوان عالٍ</span>
+          <span>◐</span>
+        </button>
       </div>
     </>
   );
 }
-

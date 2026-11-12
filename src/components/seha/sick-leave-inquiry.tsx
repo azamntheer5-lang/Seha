@@ -2,171 +2,91 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SickLeaveResult } from "@/lib/seha/domain";
+import { STATUS_LABELS } from "@/lib/seha/domain";
 
 /* -------------------------------------------------------------------------
- * Icons — exact glyphs from the reference bundle
+ * Icons — exact glyphs from the extracted page
  * ---------------------------------------------------------------------- */
 
-/** Search icon — same geometry as the reference button glyph. */
+/** Search icon — the exact 18×18 glyph inside the reference submit button. */
 function SearchIcon() {
   return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M9.1665 1.04166C4.67919 1.04166 1.0415 4.67934 1.0415 9.16666C1.0415 13.654 4.67919 17.2917 9.1665 17.2917C11.1852 17.2917 13.0319 16.5555 14.4529 15.3369L17.8912 18.7753C18.1353 19.0193 18.531 19.0193 18.7751 18.7753C19.0192 18.5312 19.0192 18.1355 18.7751 17.8914L15.3368 14.453C16.5553 13.0321 17.2915 11.1853 17.2915 9.16666C17.2915 4.67934 13.6538 1.04166 9.1665 1.04166ZM2.2915 9.16666C2.2915 5.3697 5.36955 2.29166 9.1665 2.29166C12.9635 2.29166 16.0415 5.3697 16.0415 9.16666C16.0415 12.9636 12.9635 16.0417 9.1665 16.0417C5.36955 16.0417 2.2915 12.9636 2.2915 9.16666Z"
-        fill="currentColor"
-      />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
     </svg>
   );
 }
 
-/** Back arrow icon (RTL: points left) — reference BackArrowIcon. */
-function BackArrowIcon() {
+/** Spinner — shown inside the button while the request is in flight. */
+function Spinner() {
   return (
-    <svg
-      viewBox="0 0 16 16"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <path
-        d="M10 4L6 8L10 12"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-/** faSpinner circle-notch glyph (FontAwesome) with fa-spin — like the reference loading state. */
-function FaSpinner() {
-  return (
-    <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="fa-spin">
-      <path
-        d="M256 0C297.7 0 336.3 12.6 368 34c8.4 5.7 10.5 17.2 4.6 25.5L338.7 104c-5.6 7.9-16.2 9.9-24.2 4.5C300.4 100.6 283.1 96 264.9 96c-53 0-96 43-96 96s43 96 96 96c15.8 0 30.9-3.9 44.3-11l-34.1-34.1c-8.1-8.1-8.1-21.2 0-29.3l27.6-27.6c8.1-8.1 21.2-8.1 29.3 0L460.9 429c8.1 8.1 8.1 21.2 0 29.3l-27.6 27.6c-8.1 8.1-21.2 8.1-29.3 0l-47.2-47.2C325.5 457.4 292.3 468.4 256.5 468.4c-117.4 0-212.9-95.5-212.9-212.9S139.1 42.6 256.5 42.6c2.5 0 5 .1 7.5.2L257 40.9C256.6 18.5 274.6 .4 297 .1c12.2-.2 23.8 5.4 31.6 14.9L368 34 256 0z"
-        fill="currentColor"
-        transform="translate(0 22)"
-      />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="fa-spin">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2.6" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
     </svg>
   );
 }
 
 /* -------------------------------------------------------------------------
- * Validation — exact port of the reference validateID:
- * trimmed value must be numeric and exactly 10 digits.
+ * Validation — identical contract to the extracted page:
+ *   serial: non-empty (≥ 4 chars) · identity: exactly 10 numeric digits
  * ---------------------------------------------------------------------- */
-function validateID(value: string): 0 | -1 {
-  const v = value.trim();
-  return isNaN(parseInt(v, 10)) || v.length !== 10 ? -1 : 0;
-}
+const SERIAL_ERROR = "يرجى إدخال رمز الخدمة بشكل صحيح (مثال: GSL-2026-88412).";
+const IDENTITY_ERROR = "يرجى إدخال رقم هوية أو إقامة مكون من 10 أرقام.";
+
+type FieldErrors = { serial?: string; identity?: string };
 
 /* -------------------------------------------------------------------------
- * Field — port of InquiryField
+ * Sick leave enquiry — exact port of the extracted form flow:
+ *   per-field inline errors → loading (spinner) → result box | لا يوجد نتائج
+ * Senior hardening kept on top: stale-response abort, aria-live,
+ * no double submit, rate-limit friendly error surface.
  * ---------------------------------------------------------------------- */
-function InquiryField({
-  id,
-  label,
-  ...rest
-}: {
-  id: string;
-  label: string;
-} & React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <div className="sl-field">
-      {label && <label htmlFor={id}>{label}</label>}
-      <input id={id} {...rest} />
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------
- * Results grid — port of InquiryResults (filters empty values)
- * ---------------------------------------------------------------------- */
-function InquiryResults({
-  items,
-}: {
-  items: { label: string; value: string | number | undefined | null }[];
-}) {
-  const filled = items.filter(
-    (i) =>
-      i &&
-      i.value !== undefined &&
-      i.value !== null &&
-      `${i.value}`.trim() !== ""
-  );
-  if (filled.length === 0) return null;
-  return (
-    <div className="sl-results">
-      {filled.map((item, i) => (
-        <div key={i} className="sl-results__item">
-          <span>{item.label}</span>
-          <b>{item.value}</b>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------
- * Sick leave enquiry — exact port of the reference Slenquiry flow:
- *   form → (validation) → loading (spinner, inputs disabled)
- *        → results grid | "لا يوجد نتائج" | "خطأ في الاستعلام"
- * Senior hardening on top: stale-response abort, aria-live, no double submit.
- * ---------------------------------------------------------------------- */
-export function SickLeaveInquiry({
-  onBackToInquiries,
-}: {
-  onBackToInquiries: () => void;
-}) {
+export function SickLeaveInquiry() {
   const [serial, setSerial] = useState("");
   const [idNumber, setIdNumber] = useState("");
-  const [errors, setErrors] = useState<string[]>([]);
-  const [networkError, setNetworkError] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [alertMessage, setAlertMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SickLeaveResult | null>(null);
-  const [isNewReq, setIsNewReq] = useState(true);
+  const [searched, setSearched] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
+  const serialRef = useRef<HTMLInputElement | null>(null);
 
   // Abort in-flight request on unmount.
   useEffect(() => {
     return () => abortRef.current?.abort();
   }, []);
 
-  // Errors clear whenever either input changes (reference behavior) —
-  // done inside the setters to avoid a cascading effect render.
-
   const submit = useCallback(() => {
     if (loading) return;
 
     setResult(null);
-    setNetworkError(false);
+    setAlertMessage("");
+    setSearched(false);
 
-    if (serial === "" || serial.trim() === "") {
-      setErrors(["فضلا اكتب الرمز "]);
+    // ---- validation (exact messages from the reference) ----------------
+    const serialVal = serial.trim();
+    const identityVal = idNumber.trim();
+    const nextErrors: FieldErrors = {};
+    if (serialVal.length < 4) nextErrors.serial = SERIAL_ERROR;
+    if (!/^\d{10}$/.test(identityVal)) nextErrors.identity = IDENTITY_ERROR;
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
       return;
     }
-    if (validateID(idNumber) < 0) {
-      setErrors(["رقم الهوية خاطئ "]);
-      return;
-    }
+    setErrors({});
 
+    // ---- request --------------------------------------------------------
     setLoading(true);
-
     const controller = new AbortController();
     abortRef.current = controller;
 
     const params = new URLSearchParams({
-      serviceCode: serial.trim(),
-      patientId: idNumber.trim(),
+      serviceCode: serialVal,
+      patientId: identityVal,
     });
 
     fetch(`/api/inquiries/sick-leave?${params.toString()}`, {
@@ -181,167 +101,206 @@ export function SickLeaveInquiry({
       })
       .then((body) => {
         setLoading(false);
+        setSearched(true);
         if (body.ok) {
-          setIsNewReq(false);
           setResult(body.data as SickLeaveResult);
           return;
         }
-        // Executed query with no match → identical to reference "no results".
-        if (body.error === "NOT_FOUND" || body.error === "SERVER") {
-          setIsNewReq(false);
+        // Executed query with no match → identical to reference "لا يوجد نتائج".
+        if (body.error === "NOT_FOUND") {
           setResult(null);
-          if (body.error === "SERVER") setNetworkError(true);
           return;
         }
-        // Validation / rate-limit: keep form editable, show server message.
-        setErrors([body.message ?? "خطأ في الاستعلام"]);
+        if (body.error === "SERVER") {
+          setResult(null);
+          setAlertMessage("خطأ في الاستعلام");
+          return;
+        }
+        // Validation / rate-limit → surface the server message.
+        setSearched(false);
+        setAlertMessage(body.message ?? "خطأ في الاستعلام");
       })
       .catch((err: unknown) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setLoading(false);
-        setIsNewReq(false);
+        setSearched(true);
         setResult(null);
-        setNetworkError(true);
+        setAlertMessage("خطأ في الاستعلام");
       });
   }, [serial, idNumber, loading]);
 
+  /** استعلام جديد ↺ — reset to a fresh form (exact reference behavior). */
   const newRequest = useCallback(() => {
-    setErrors([]);
-    setNetworkError(false);
+    abortRef.current?.abort();
+    setErrors({});
+    setAlertMessage("");
     setSerial("");
     setIdNumber("");
     setResult(null);
-    setIsNewReq(true);
+    setSearched(false);
+    setLoading(false);
+    serialRef.current?.focus();
   }, []);
 
-  const resultItems: { label: string; value: string | number | undefined | null }[] =
-    result
-      ? [
-          { label: "الاسم", value: result.patientName },
-          { label: "اسم المرافق", value: result.companionName },
-          { label: "صلة القرابة", value: result.relationshipLabel },
-          { label: "تاريخ إصدار تقرير الإجازة", value: result.sickLeaveDate },
-          { label: "تبدأ من", value: result.dateFrom },
-          { label: "وحتى", value: result.dateTo },
-          { label: "المدة بالأيام", value: result.durationDays },
-          { label: "اسم الطبيب", value: result.doctorName },
-          { label: "المسمى الوظيفي", value: result.doctorJobTitle },
-        ]
-      : [];
+  const statusText = result
+    ? result.status === "ACTIVE"
+      ? "معتمدة - متاحة للطباعة عبر تطبيق صحتي"
+      : (STATUS_LABELS[result.status] ?? result.status)
+    : "";
 
   return (
-    <div className="sl-inquiry" dir="rtl">
-      {/* Hero — green band with title + subtitle */}
-      <section className="sl-inquiry__hero">
-        <div className="sl-inquiry__hero-inner">
-          <h1>الإجازات المرضية</h1>
-          <p>
-            خدمة الاستعلام عن الإجازات المرضية تتيح لك الاستعلام عن حالة طلبك
-            للإجازة ويمكنك طباعتها عن طريق تطبيق صحتي
-          </p>
-        </div>
-      </section>
+    <form
+      className="sl-inquiry__card"
+      id="slInquiryForm"
+      noValidate
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <h2 className="sl-inquiry__card-title">الاستعلام عن إجازة مرضية</h2>
 
-      {/* Card */}
-      <div className="sl-inquiry__card">
-        <h2 className="sl-inquiry__card-title">الاستعلام عن إجازة مرضية</h2>
-
-        {errors.map((e, i) => (
-          <p key={i} className="sl-alert">
-            {e}
-          </p>
-        ))}
-
-        <InquiryField
+      {/* الحقل الأول: رمز الخدمة */}
+      <div className={`sl-field${errors.serial ? " has-error" : ""}`} id="serialFieldGroup">
+        <label htmlFor="sl-serial">رمز الخدمة</label>
+        <input
           id="sl-serial"
-          label="رمز الخدمة"
+          ref={serialRef}
+          className="sl-input"
           type="text"
           maxLength={20}
           placeholder="أدخل رمز الخدمة"
+          autoComplete="off"
           value={serial}
-          disabled={!isNewReq}
+          disabled={loading}
+          aria-invalid={errors.serial ? true : undefined}
           onChange={(e) => {
             setSerial(e.target.value);
-            if (errors.length) setErrors([]);
+            if (errors.serial) setErrors((p) => ({ ...p, serial: undefined }));
           }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && isNewReq) submit();
-          }}
-          autoComplete="off"
         />
+        <span className="sl-field-error" id="serialError">
+          {errors.serial ?? SERIAL_ERROR}
+        </span>
+      </div>
 
-        <InquiryField
-          id="sl-id"
-          label="رقم الهوية / الإقامة"
+      {/* الحقل الثاني: رقم الهوية / الإقامة */}
+      <div className={`sl-field${errors.identity ? " has-error" : ""}`} id="identityFieldGroup">
+        <label htmlFor="sl-identity">رقم الهوية / الإقامة</label>
+        <input
+          id="sl-identity"
+          className="sl-input"
           type="text"
           maxLength={10}
-          pattern="\d*"
           placeholder="أدخل رقم الهوية / الإقامة"
+          autoComplete="off"
+          inputMode="numeric"
           value={idNumber}
-          disabled={!isNewReq}
+          disabled={loading}
+          aria-invalid={errors.identity ? true : undefined}
           onChange={(e) => {
             setIdNumber(e.target.value.replace(/[^\d]/g, "").slice(0, 10));
-            if (errors.length) setErrors([]);
+            if (errors.identity) setErrors((p) => ({ ...p, identity: undefined }));
           }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && isNewReq) submit();
-          }}
-          autoComplete="off"
         />
-
-        {/* Result / alert area (aria-live for screen readers — senior a11y win) */}
-        <div aria-live="polite" aria-atomic="true">
-          {networkError && (
-            <div className="sl-alert" role="alert">
-              خطأ في الاستعلام
-            </div>
-          )}
-
-          {result && <InquiryResults items={resultItems} />}
-
-          {!networkError && !result && !isNewReq && !loading && (
-            <div className="sl-alert" role="alert">
-              لا يوجد نتائج
-            </div>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="sl-actions">
-          {!isNewReq && (
-            <button
-              type="button"
-              className="sl-btn sl-btn--outline"
-              onClick={onBackToInquiries}
-            >
-              <BackArrowIcon />
-              رجوع للاستعلامات
-            </button>
-          )}
-
-          {isNewReq ? (
-            <button
-              type="submit"
-              className="sl-btn sl-btn--primary"
-              disabled={loading}
-              onClick={submit}
-              aria-busy={loading}
-            >
-              {loading ? <FaSpinner /> : <SearchIcon />}
-              استعلام
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="sl-btn sl-btn--primary"
-              onClick={newRequest}
-            >
-              <SearchIcon />
-              استعلام جديد
-            </button>
-          )}
-        </div>
+        <span className="sl-field-error" id="identityError">
+          {errors.identity ?? IDENTITY_ERROR}
+        </span>
       </div>
-    </div>
+
+      {/* زر الاستعلام الرئيسي */}
+      <div className="sl-actions">
+        <button
+          className="sl-btn sl-btn--primary"
+          type="submit"
+          id="submitInquiryBtn"
+          disabled={loading}
+          aria-busy={loading}
+        >
+          {loading ? <Spinner /> : <SearchIcon />}
+          <span>استعلام</span>
+        </button>
+      </div>
+
+      {/* منطقة عرض النتيجة (aria-live لقارئات الشاشة — تحسين إتاحة) */}
+      <div aria-live="polite" aria-atomic="true">
+        {alertMessage && (
+          <div className="sl-alert" style={{ marginTop: 12 }} role="alert">
+            {alertMessage}
+          </div>
+        )}
+
+        {result && (
+          <div className="sl-result-box show" id="inquiryResultBox">
+            <div className="sl-result-header">
+              <span>بيانات الإجازة المرضية المستعلم عنها</span>
+              <button type="button" className="sl-result-reset" id="resetInquiryBtn" onClick={newRequest}>
+                استعلام جديد ↺
+              </button>
+            </div>
+            <div className="sl-result-grid">
+              <div className="sl-result-item">
+                <span>رمز الخدمة</span>
+                <strong>{result.serviceCode}</strong>
+              </div>
+              <div className="sl-result-item">
+                <span>رقم الهوية / الإقامة</span>
+                <strong dir="ltr">{result.patientId}</strong>
+              </div>
+              <div className="sl-result-item">
+                <span>حالة الطلب</span>
+                <strong style={{ color: "#1B8354" }}>{statusText}</strong>
+              </div>
+              <div className="sl-result-item">
+                <span>الاسم</span>
+                <strong>{result.patientName}</strong>
+              </div>
+              {result.companionName && (
+                <div className="sl-result-item">
+                  <span>اسم المرافق</span>
+                  <strong>{result.companionName}</strong>
+                </div>
+              )}
+              {result.relationshipLabel && (
+                <div className="sl-result-item">
+                  <span>صلة القرابة</span>
+                  <strong>{result.relationshipLabel}</strong>
+                </div>
+              )}
+              <div className="sl-result-item">
+                <span>تاريخ إصدار تقرير الإجازة</span>
+                <strong dir="ltr">{result.sickLeaveDate}</strong>
+              </div>
+              <div className="sl-result-item">
+                <span>تبدأ من</span>
+                <strong dir="ltr">{result.dateFrom}</strong>
+              </div>
+              <div className="sl-result-item">
+                <span>وحتى</span>
+                <strong dir="ltr">{result.dateTo}</strong>
+              </div>
+              <div className="sl-result-item">
+                <span>المدة بالأيام</span>
+                <strong>{result.durationDays}</strong>
+              </div>
+              <div className="sl-result-item">
+                <span>اسم الطبيب</span>
+                <strong>{result.doctorName}</strong>
+              </div>
+              <div className="sl-result-item">
+                <span>المسمى الوظيفي</span>
+                <strong>{result.doctorJobTitle}</strong>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {searched && !result && !alertMessage && (
+          <div className="sl-result-box sl-result-box--empty" id="inquiryResultBox" role="status">
+            لا يوجد نتائج
+          </div>
+        )}
+      </div>
+    </form>
   );
 }

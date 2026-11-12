@@ -1,388 +1,245 @@
 "use client";
 
-import type { SehaView } from "./seha-types";
-
 /**
- * Footer — 1:1 port of the reference footer-container:
- * four sections (عن صحة / الخدمات والمعلومات / تواصل معنا / تابعنا + أدوات الاتاحة)
- * + bottom bar (copyright, powered-by, legal links, partner logo strip).
- * All icons/logos are the original platform assets.
+ * Footer — exact 1:1 port of the extracted markup:
+ *  4 columns (عن صحة / الخدمات والمعلومات / تواصل معنا / تابعنا على + أدوات الإتاحة)
+ *  + bottom bar with text partner badges, legal lines and policy links.
  */
 
-/** Phone icon — exact reference inline SVG (fill #161616). */
+/** Feather-style icons — the exact inline SVGs from the extracted page. */
+
 function PhoneIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M2.71151 0.0243784C3.0893 0.102461 3.39016 0.356287 3.57709 0.691642L4.17256 1.75993C4.3919 2.15341 4.57649 2.48453 4.69703 2.77238C4.8249 3.07772 4.90084 3.37883 4.86613 3.71174C4.83141 4.04464 4.69497 4.3236 4.50686 4.59599C4.32952 4.85278 4.08059 5.13869 3.78479 5.47845L2.29955 7.18446C3.47744 9.11511 5.21674 10.8552 7.14937 12.0343L8.8554 10.549C9.19514 10.2532 9.48106 10.0043 9.73784 9.82698C10.0102 9.63886 10.2892 9.50243 10.6221 9.46771C10.955 9.43299 11.2561 9.50894 11.5615 9.63681C11.8493 9.75735 12.1804 9.94193 12.5739 10.1613L13.6422 10.7567C13.9775 10.9437 14.2314 11.2445 14.3095 11.6223C14.3884 12.0041 14.272 12.3878 14.0149 12.7031C13.0823 13.8474 11.5882 14.5759 10.0207 14.2597C9.05717 14.0654 8.10651 13.7415 6.9567 13.0821C4.64647 11.7572 2.57508 9.68469 1.2517 7.37713C0.592289 6.22733 0.26848 5.27667 0.0741176 4.31316C-0.24208 2.74568 0.486477 1.25149 1.63072 0.318889C1.94607 0.0618611 2.32977 -0.0545197 2.71151 0.0243784ZM8.0808 12.5493C8.85838 12.9324 9.53469 13.1415 10.2184 13.2795C11.3491 13.5075 12.4906 12.9905 13.2398 12.0713C13.3382 11.9507 13.3388 11.8664 13.3302 11.8247C13.3207 11.7791 13.2825 11.7011 13.1553 11.6302L12.111 11.0481C11.6872 10.8119 11.4051 10.6555 11.1752 10.5592C10.9569 10.4678 10.8317 10.4513 10.7258 10.4623C10.6199 10.4734 10.5008 10.5154 10.3061 10.6498C10.101 10.7915 9.85723 11.0027 9.49133 11.3213L8.0808 12.5493ZM1.78457 6.25304L3.01256 4.84251C3.33111 4.4766 3.54237 4.23283 3.68401 4.02773C3.81847 3.83304 3.86048 3.71391 3.87152 3.60802C3.88256 3.50212 3.86604 3.37689 3.77464 3.15865C3.67836 2.92873 3.52195 2.64662 3.28574 2.22286L2.70362 1.17852C2.6327 1.05129 2.55471 1.01311 2.5091 1.00368C2.46744 0.995068 2.38318 0.995673 2.2625 1.09404C1.34331 1.84321 0.826284 2.98472 1.05437 4.11542C1.19229 4.79914 1.40142 5.47545 1.78457 6.25304Z"
-        fill="#161616"
-      />
+    <svg className="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
     </svg>
   );
 }
 
-/** Email icon — exact reference inline SVG (fill #161616). */
-function EmailIcon() {
+function MailIcon() {
   return (
-    <svg width="15" height="13" viewBox="0 0 15 13" fill="none" aria-hidden="true">
-      <path
-        d="M5.54065 5.42164C6.19398 5.80631 6.67998 5.99898 7.16598 5.99898C7.65264 5.99898 8.13867 5.80697 8.79267 5.42164L10.754 4.26161C10.992 4.12161 11.0706 3.81498 10.93 3.57698C10.79 3.33898 10.4833 3.26027 10.2453 3.40094L8.28466 4.56031C7.30199 5.13831 7.02999 5.13831 6.04866 4.56031L4.08733 3.40029C3.85 3.25962 3.5433 3.33893 3.40263 3.57626C3.26196 3.8136 3.34134 4.1203 3.57867 4.26096L5.54065 5.42164Z"
-        fill="#161616"
-      />
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M5.21981 12.3043C5.87448 12.321 6.52049 12.3297 7.16649 12.3297C7.81249 12.3297 8.4585 12.321 9.11317 12.3043L9.11407 12.3043C11.2722 12.2496 12.4613 12.2195 13.3578 11.3236C14.2525 10.4216 14.2772 9.26431 14.3218 7.1623C14.3358 6.49097 14.3358 5.83898 14.3218 5.16764C14.2772 3.06564 14.2525 1.90763 13.3558 1.0043C12.4605 0.110297 11.2712 0.0796667 9.11252 0.025C7.80252 -0.00833333 6.52916 -0.00833333 5.21916 0.025L5.21826 0.0250228C3.06016 0.079675 1.87104 0.109789 0.974497 1.00566C0.0798307 1.90766 0.0551667 3.06499 0.0105 5.16699C-0.0035 5.83833 -0.0035 6.49032 0.0105 7.16165C0.0551667 9.26365 0.0798499 10.4217 0.976516 11.325C1.87185 12.219 3.06114 12.2496 5.21981 12.3043ZM1.68452 10.6183C1.07052 10.0003 1.05118 9.10363 1.00985 7.1403C0.995849 6.48297 0.995849 5.8443 1.00985 5.18763C1.05118 3.2243 1.07051 2.32834 1.68251 1.711C2.29512 1.09839 3.219 1.07497 5.24399 1.02365C6.53732 0.990312 7.79453 0.990299 9.08719 1.02363C11.1125 1.07497 12.0365 1.09897 12.6479 1.70964C13.2619 2.32764 13.2811 3.2243 13.3225 5.18763C13.3365 5.84496 13.3365 6.48363 13.3225 7.1403C13.2811 9.10363 13.2618 9.99966 12.6498 10.617C12.0373 11.2295 11.1135 11.253 9.089 11.3043L9.08784 11.3043C7.79451 11.3376 6.53787 11.3376 5.2452 11.3043C3.21987 11.253 2.29586 11.229 1.68452 10.6183Z"
-        fill="#161616"
-      />
+    <svg className="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+      <polyline points="22,6 12,13 2,6" />
     </svg>
   );
 }
 
-/** Clock icon — exact reference inline SVG (fill #161616). */
+function WhatsAppIcon() {
+  return (
+    <svg className="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+    </svg>
+  );
+}
+
 function ClockIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-      <path
-        d="M10.1869 4.85355C10.3821 4.65829 10.3821 4.34171 10.1869 4.14645C9.99162 3.95118 9.67504 3.95118 9.47978 4.14645L7.16671 6.45951L5.85354 5.14643C5.65827 4.95118 5.34169 4.95119 5.14643 5.14646C4.95118 5.34173 4.95119 5.65831 5.14646 5.85357L6.45961 7.16662L6.14645 7.47978C5.95118 7.67504 5.95118 7.99162 6.14645 8.18689C6.34171 8.38215 6.65829 8.38215 6.85355 8.18689L7.16674 7.8737L7.47971 8.18665C7.67498 8.38191 7.99156 8.3819 8.18682 8.18663C8.38207 7.99136 8.38206 7.67478 8.18679 7.47952L7.87384 7.1666L10.1869 4.85355Z"
-        fill="#161616"
-      />
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M7.16667 0C3.20863 0 0 3.20863 0 7.16667C0 11.1247 3.20863 14.3333 7.16667 14.3333C11.1247 14.3333 14.3333 11.1247 14.3333 7.16667C14.3333 3.20863 11.1247 0 7.16667 0ZM1 7.16667C1 3.76091 3.76091 1 7.16667 1C10.5724 1 13.3333 3.76091 13.3333 7.16667C13.3333 10.5724 10.5724 13.3333 7.16667 13.3333C3.76091 13.3333 1 10.5724 1 7.16667Z"
-        fill="#161616"
-      />
+    <svg className="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
     </svg>
   );
 }
 
-/** YouTube icon — exact reference inline SVG (fill #161616). */
 function YouTubeIcon() {
   return (
-    <svg width="18" height="16" viewBox="0 0 18 16" fill="none" aria-hidden="true">
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M10.4987 5.3266L10.4305 5.28904C9.74343 4.91043 9.18149 4.60076 8.71889 4.40919C8.24925 4.21471 7.76763 4.09072 7.27732 4.21923C6.99877 4.29224 6.73727 4.42183 6.51382 4.60248C6.10357 4.93415 5.95855 5.40906 5.89493 5.88764C5.83339 6.35055 5.83341 6.94935 5.83344 7.66382V7.7529C5.83341 8.46737 5.83339 9.06617 5.89493 9.52908C5.95855 10.0077 6.10357 10.4826 6.51382 10.8142C6.73727 10.9949 6.99877 11.1245 7.27731 11.1975C7.76763 11.326 8.24925 11.202 8.71889 11.0075C9.1815 10.816 9.74343 10.5063 10.4305 10.1277L10.4987 10.0901C11.1273 9.74373 11.6465 9.45764 12.0202 9.19253C12.3945 8.92693 12.7497 8.59779 12.8673 8.11778C12.9333 7.84832 12.9333 7.5684 12.8673 7.29894C12.7497 6.81894 12.3945 6.4898 12.0202 6.22419C11.6465 5.95909 11.1273 5.67299 10.4987 5.3266ZM7.59423 5.42839C7.68361 5.40496 7.84967 5.40218 8.24063 5.56409C8.63109 5.72578 9.1319 6.00068 9.86085 6.40236C10.5327 6.77259 10.9884 7.02478 11.2968 7.24365C11.6114 7.46686 11.6471 7.57146 11.6532 7.59632C11.6713 7.67042 11.6713 7.74631 11.6532 7.8204C11.6471 7.84527 11.6114 7.94986 11.2968 8.17307C10.9884 8.39194 10.5327 8.64413 9.86085 9.01436C9.1319 9.41604 8.63109 9.69095 8.24064 9.85264C7.84967 10.0145 7.68361 10.0118 7.59423 9.98834C7.4801 9.95843 7.37993 9.90705 7.2997 9.84219C7.26163 9.81141 7.18248 9.72885 7.13403 9.36435C7.08476 8.99377 7.08344 8.47914 7.08344 7.70836C7.08344 6.93759 7.08476 6.42295 7.13403 6.05237C7.18248 5.68787 7.26163 5.60532 7.2997 5.57454C7.37993 5.50967 7.4801 5.4583 7.59423 5.42839Z"
-        fill="#161616"
-      />
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M8.95842 0C7.40959 0 5.92154 0.152968 4.53905 0.43478L4.43299 0.456379C2.85413 0.777744 1.80213 0.991869 0.895581 2.15743C-0.00123342 3.31049 -0.000731833 4.64767 4.50145e-05 6.71866L4.50145e-05 8.698C-0.000731833 10.769 -0.00123342 12.1062 0.895581 13.2592C1.80212 14.4248 2.85413 14.6389 4.43298 14.9603L4.53905 14.9819C5.92154 15.2637 7.40959 15.4167 8.95842 15.4167C10.5073 15.4167 11.9953 15.2637 13.3778 14.9819L13.4839 14.9603C15.0627 14.6389 16.1147 14.4248 17.0213 13.2592C17.9181 12.1062 17.9176 10.769 17.9168 8.69801L17.9168 6.71866C17.9176 4.64766 17.9181 3.31049 17.0213 2.15743C16.1147 0.991869 15.0627 0.777744 13.4839 0.456379L13.3778 0.43478C11.9953 0.152968 10.5073 0 8.95842 0ZM4.78872 1.65959C6.0868 1.39499 7.49112 1.25 8.95842 1.25C10.4257 1.25 11.8301 1.39499 13.1281 1.65959C14.8382 2.00818 15.4336 2.15217 16.0346 2.92486C16.6388 3.70168 16.6668 4.57386 16.6668 6.90538L16.6668 8.51129C16.6668 10.8428 16.6388 11.715 16.0346 12.4918C15.4336 13.2645 14.8382 13.4085 13.1281 13.7571C11.8301 14.0217 10.4257 14.1667 8.95842 14.1667C7.49112 14.1667 6.0868 14.0217 4.78872 13.7571C3.07864 13.4085 2.48325 13.2645 1.88227 12.4918C1.27808 11.715 1.25009 10.8428 1.25009 8.51129L1.25009 6.90538C1.25009 4.57386 1.27808 3.70168 1.88227 2.92486C2.48325 2.15217 3.07864 2.00818 4.78872 1.65959Z"
-        fill="#161616"
-      />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
     </svg>
   );
 }
 
-/** X (Twitter) icon — exact reference inline SVG (fill #161616). */
 function XIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M4.375 3.75C4.1403 3.75 3.92538 3.88149 3.81853 4.09047C3.71168 4.29944 3.73091 4.55066 3.86833 4.74093L7.05131 9.14814L3.93306 12.2664C3.68898 12.5105 3.68898 12.9062 3.93306 13.1503C4.17714 13.3944 4.57287 13.3944 4.81694 13.1503L7.79263 10.1746L9.88685 13.0743C10.0043 13.237 10.1928 13.3333 10.3935 13.3333H12.7083C12.943 13.3333 13.158 13.2018 13.2648 12.9929C13.3717 12.7839 13.3524 12.5327 13.215 12.3424L10.032 7.93519L13.1503 4.81694C13.3944 4.57286 13.3944 4.17714 13.1503 3.93306C12.9062 3.68898 12.5105 3.68898 12.2664 3.93306L9.2907 6.90875L7.19649 4.00907C7.07899 3.84637 6.89051 3.75 6.68982 3.75H4.375ZM11.486 12.0833H10.7131L5.59735 5H6.37025L11.486 12.0833Z"
-        fill="#161616"
-      />
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M8.58931 1.90881e-07H8.49402C6.66843 -1.09381e-05 5.23453 -1.97813e-05 4.11502 0.150495C2.96781 0.304734 2.05759 0.627263 1.34243 1.34243C0.627263 2.05759 0.304734 2.96781 0.150495 4.11502C-1.97813e-05 5.23453 -1.09381e-05 6.66843 1.90882e-07 8.49402V8.58931C-1.09381e-05 10.4149 -1.97813e-05 11.8488 0.150495 12.9683C0.304734 14.1155 0.627263 15.0257 1.34243 15.7409C2.05759 16.4561 2.96781 16.7786 4.11502 16.9328C5.23453 17.0834 6.66842 17.0833 8.494 17.0833H8.58931C10.4149 17.0833 11.8488 17.0834 12.9683 16.9328C14.1155 16.7786 15.0257 16.4561 15.7409 15.7409C16.4561 15.0257 16.7786 14.1155 16.9328 12.9683C17.0834 11.8488 17.0833 10.4149 17.0833 8.58933V8.49403C17.0833 6.66845 17.0834 5.23453 16.9328 4.11502C16.7786 2.96781 16.4561 2.05759 15.7409 1.34243C15.0257 0.627263 14.1155 0.304734 12.9683 0.150495C11.8488 -1.97813e-05 10.4149 -1.09381e-05 8.58931 1.90881e-07ZM2.22631 2.22631C2.67052 1.78211 3.27298 1.52495 4.28158 1.38935C5.30816 1.25133 6.65802 1.25 8.54167 1.25C10.4253 1.25 11.7752 1.25133 12.8018 1.38935C13.8104 1.52495 14.4128 1.78211 14.857 2.22631C15.3012 2.67052 15.5584 3.27298 15.694 4.28158C15.832 5.30816 15.8333 6.65802 15.8333 8.54167C15.8333 10.4253 15.832 11.7752 15.694 12.8018C15.5584 13.8104 15.3012 14.4128 14.857 14.857C14.4128 15.3012 13.8104 15.5584 12.8018 15.694C11.7752 15.832 10.4253 15.8333 8.54167 15.8333C6.65802 15.8333 5.30816 15.832 4.28158 15.694C3.27298 15.5584 2.67052 15.3012 2.22631 14.857C1.78211 14.4128 1.52495 13.8104 1.38935 12.8018C1.25133 11.7752 1.25 10.4253 1.25 8.54167C1.25 6.65802 1.25133 5.30816 1.38935 4.28158C1.52495 3.27298 1.78211 2.67052 2.22631 2.22631Z"
-        fill="#161616"
-      />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
     </svg>
   );
 }
 
-/** Accessibility icon — exact reference inline SVG (fill #161616). */
-function AccessIcon() {
+function AccessibilityIcon() {
   return (
-    <svg
-      width="14"
-      height="18"
-      viewBox="0 0 14 18"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M5 2.29167C5 1.02601 6.02601 0 7.29167 0C8.55732 0 9.58333 1.02601 9.58333 2.29167C9.58333 3.55732 8.55732 4.58333 7.29167 4.58333C6.02601 4.58333 5 3.55732 5 2.29167ZM7.29167 1.25C6.71637 1.25 6.25 1.71637 6.25 2.29167C6.25 2.86696 6.71637 3.33333 7.29167 3.33333C7.86696 3.33333 8.33333 2.86696 8.33333 2.29167C8.33333 1.71637 7.86696 1.25 7.29167 1.25Z"
-        fill="#161616"
-      />
-      <path
-        d="M7.29168 5C7.63686 5 7.91668 5.27982 7.91668 5.625V7.08333H10.5324C10.8776 7.08333 11.1574 7.36316 11.1574 7.70833C11.1574 8.05351 10.8776 8.33333 10.5324 8.33333H7.91668V11.0417C7.91668 11.1242 7.91671 11.1912 7.91764 11.249C7.97552 11.25 8.04245 11.25 8.12502 11.25L10.0818 11.25C10.1997 11.2499 10.3332 11.2499 10.4497 11.2627C10.5885 11.2779 10.7596 11.3158 10.9269 11.4291C11.0942 11.5424 11.1929 11.6871 11.2586 11.8104C11.3138 11.9138 11.3633 12.0377 11.407 12.1472L11.8291 13.2024C11.8501 13.2549 11.8669 13.2969 11.8818 13.3328C11.9208 13.3333 11.9659 13.3333 12.0225 13.3333H13.125C13.4702 13.3333 13.75 13.6132 13.75 13.9583C13.75 14.3035 13.4702 14.5833 13.125 14.5833L12.0015 14.5833C11.8836 14.5834 11.7502 14.5834 11.6337 14.5706C11.4948 14.5554 11.3238 14.5175 11.1565 14.4042C10.9892 14.291 10.8904 14.1462 10.8247 14.0229C10.7696 13.9195 10.7201 13.7956 10.6763 13.6861L10.2543 12.631C10.2332 12.5784 10.2164 12.5365 10.2015 12.5005C10.1626 12.5 10.1174 12.5 10.0608 12.5L8.09631 12.5C7.92539 12.5001 7.74055 12.5001 7.58454 12.4792C7.40177 12.4546 7.16828 12.3914 6.97178 12.1949C6.77528 11.9984 6.71208 11.7649 6.68751 11.5821C6.66653 11.4261 6.66661 11.2413 6.66668 11.0704L6.66668 5.625C6.66668 5.27982 6.9465 5 7.29168 5Z"
-        fill="#161616"
-      />
-      <path
-        d="M4.94291 7.90823C5.28338 7.85137 5.51329 7.52928 5.45643 7.18882C5.39957 6.84835 5.07748 6.61844 4.73702 6.6753C2.05062 7.12393 0 9.44967 0 12.257C0 15.3855 2.54705 17.9168 5.68296 17.9168C7.58367 17.9168 9.26717 16.9867 10.2982 15.56C10.5004 15.2802 10.4375 14.8895 10.1578 14.6874C9.87798 14.4852 9.48729 14.5481 9.2851 14.8278C8.47983 15.9421 7.16691 16.6668 5.68296 16.6668C3.232 16.6668 1.25 14.6897 1.25 12.257C1.25 10.0748 2.84497 8.25858 4.94291 7.90823Z"
-        fill="#161616"
-      />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <circle cx="12" cy="4" r="2" />
+      <path d="M4 9h16" />
+      <path d="M10 9v11" />
+      <path d="M14 9v11" />
     </svg>
   );
 }
+
+/** No-op handler for pages that are not part of this replica. */
+const noop = (e: React.MouseEvent) => e.preventDefault();
 
 export function SehaFooter({
-  onNavigateInquiries,
+  onOpenInquiries,
+  onOpenA11y,
 }: {
-  onNavigateInquiries: (view: SehaView) => void;
+  onOpenInquiries: () => void;
+  onOpenA11y: () => void;
 }) {
   return (
-    <footer className="footer-container" dir="rtl">
+    <footer dir="rtl" className="footer-container container-fluid">
       <div className="footer">
-        {/* --- Column 1: عن صحة --- */}
-        <div className="about-seha section">
-          <h3 className="heading">
-            <span className="heading-label">عن صحة</span>
-          </h3>
-          <ul className="links-wrapepr about-seha__list">
-            <li className="inquiry-li">
-              <button
-                type="button"
-                className="nav-link"
-                onClick={() => window.alert("صفحة عن صحة قيد التجهيز.")}
-              >
-                عن صحة
-              </button>
-            </li>
-            <li className="inquiry-li">
-              <button
-                type="button"
-                className="nav-link"
-                onClick={() => window.alert("صفحة المنظومة الصحية قيد التجهيز.")}
-              >
-                المنظومة الصحية
-              </button>
-            </li>
-            <li className="inquiry-li">
-              <button
-                type="button"
-                className="nav-link"
-                onClick={() => window.alert("صفحة شركاؤنا قيد التجهيز.")}
-              >
-                شركاؤنا
-              </button>
-            </li>
-          </ul>
-        </div>
+        <div className="footer-columns">
+          {/* العمود الأول: عن صحة */}
+          <div className="about-seha section">
+            <h3 className="heading">عن صحة</h3>
+            <ul className="links-wrapper">
+              <li>
+                <a href="#/about" onClick={noop}>
+                  عن صحة
+                </a>
+              </li>
+              <li>
+                <a href="#/ecosystem" onClick={noop}>
+                  المنظومة الصحية
+                </a>
+              </li>
+              <li>
+                <a href="#/partners" onClick={noop}>
+                  شركاؤنا
+                </a>
+              </li>
+            </ul>
+          </div>
 
-        {/* --- Column 2: الخدمات و المعلومات --- */}
-        <div className="footer-services section">
-          <h3 className="heading">
-            <span className="heading-label">الخدمات و المعلومات</span>
-          </h3>
-          <ul className="links-wrapepr footer-services__list">
-            <li className="inquiry-li">
-              <button
-                type="button"
-                className="nav-link"
-                onClick={() => window.alert("صفحة الخدمات قيد التجهيز.")}
-              >
-                الخدمات
-              </button>
-            </li>
-            <li className="inquiry-li">
-              <button
-                type="button"
-                className="nav-link"
-                onClick={() => window.alert("صفحة صحة بلس قيد التجهيز.")}
-              >
-                صحة بلس
-              </button>
-            </li>
-            <li className="inquiry-li">
-              <button
-                type="button"
-                className="nav-link"
-                onClick={() => onNavigateInquiries("inquiries")}
-              >
-                الاستعلامات
-              </button>
-            </li>
-            <li className="inquiry-li">
-              <button
-                type="button"
-                className="nav-link"
-                onClick={() => window.alert("صفحة الأسئلة الشائعة قيد التجهيز.")}
-              >
-                الأسئلة الشائعة
-              </button>
-            </li>
-            <li className="inquiry-li">
-              <button
-                type="button"
-                className="nav-link"
-                onClick={() => window.alert("صفحة الأثر البيئي قيد التجهيز.")}
-              >
-                الأثر البيئي
-              </button>
-            </li>
-          </ul>
-        </div>
+          {/* العمود الثاني: الخدمات والمعلومات */}
+          <div className="footer-services section">
+            <h3 className="heading">الخدمات و المعلومات</h3>
+            <ul className="links-wrapper footer-services__list">
+              <li>
+                <a href="#/cms/services" onClick={noop}>
+                  الخدمات
+                </a>
+              </li>
+              <li>
+                <a href="#/seha-plus" onClick={noop}>
+                  صحة بلس
+                </a>
+              </li>
+              <li>
+                <a
+                  href="#/inquiries"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onOpenInquiries();
+                  }}
+                >
+                  الاستعلامات
+                </a>
+              </li>
+              <li>
+                <a href="#/faq" onClick={noop}>
+                  الأسئلة الشائعة
+                </a>
+              </li>
+              <li>
+                <a href="#/environmental-impact" onClick={noop}>
+                  الأثر البيئي
+                </a>
+              </li>
+            </ul>
+          </div>
 
-        {/* --- Column 3: تواصل معنا --- */}
-        <div className="footer-contact section">
-          <h3 className="heading">
-            <span className="heading-label">تواصل معنا</span>
-          </h3>
-          <div className="footer-contact__values">
-            <div className="contact-link-row">
-              <a className="contact-icon-btn contact-icon-btn--phone" href="tel:920002005" aria-label="Phone">
-                <span className="contact-icon-leading">
+          {/* العمود الثالث: تواصل معنا */}
+          <div className="footer-contact section">
+            <h3 className="heading">تواصل معنا</h3>
+            <ul className="contact-list">
+              <li>
+                <a href="tel:920002005" aria-label="اتصال">
                   <PhoneIcon />
-                </span>
-              </a>
-              <a className="contact-link-text" href="tel:920002005">
-                920002005
-              </a>
-            </div>
-            <div className="contact-link-row">
-              <a className="contact-icon-btn contact-icon-btn--email" href="mailto:support@seha.sa" aria-label="Email">
-                <span className="contact-icon-leading">
-                  <EmailIcon />
-                </span>
-              </a>
-              <a className="contact-link-text" href="mailto:support@seha.sa">
-                support@seha.sa
-              </a>
-            </div>
-            <div className="contact-link-row">
-              <a
-                className="contact-icon-btn contact-icon-btn--whatsapp"
-                href="https://wa.me/920002005"
-                target="_blank"
-                rel="noreferrer"
-                aria-label="WhatsApp"
-              >
-                <span className="contact-icon-leading">
-                  <img src="/assets/DGA_Whatapp_icon-D0Nr6D16.svg" alt="" aria-hidden="true" />
-                </span>
-              </a>
-              <a
-                className="contact-link-text"
-                href="https://wa.me/920002005"
-                target="_blank"
-                rel="noreferrer"
-              >
-                920002005
-              </a>
-            </div>
-            <div className="contact-hours-row">
-              <span className="contact-icon-btn" aria-hidden="true">
-                <span className="contact-icon-leading">
-                  <ClockIcon />
-                </span>
-              </span>
-              <span className="contact-hours-text">
-                {`أوقات العمل: الأحد حتى الخميس\n8 ص - 11 م`}
-              </span>
-            </div>
+                  <span dir="ltr">920002005</span>
+                </a>
+              </li>
+              <li>
+                <a href="mailto:support@seha.sa" aria-label="البريد الإلكتروني">
+                  <MailIcon />
+                  <span>support@seha.sa</span>
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://wa.me/920002005"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="واتساب"
+                >
+                  <WhatsAppIcon />
+                  <span dir="ltr">920002005</span>
+                </a>
+              </li>
+              <li>
+                <ClockIcon />
+                <span>أوقات العمل: الأحد حتى الخميس 8 ص - 11 م</span>
+              </li>
+            </ul>
           </div>
-        </div>
 
-        {/* --- Column 4: تابعنا على + أدوات الاتاحة والوصول --- */}
-        <div className="footer-social-access section">
-          <div className="footer-follow">
-            <h3 className="heading">
-              <span className="heading-label">تابعنا على</span>
-            </h3>
-            <div className="social footer-follow__icons">
-              <button type="button" className="social-icon-btn social-icon-btn--youtube" aria-label="YouTube">
-                <a
-                  href="https://www.youtube.com/channel/UCb9ZrS2YcriYqIPIHNp9wcQ"
-                  aria-label="YouTube"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <YouTubeIcon />
-                </a>
-              </button>
-              <button type="button" className="social-icon-btn social-icon-btn--x" aria-label="X">
-                <a
-                  href="https://twitter.com/seha_services"
-                  aria-label="X"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <XIcon />
-                </a>
-              </button>
-            </div>
-          </div>
-          <div className="footer-access">
-            <h3 className="heading">
-              <span className="heading-label">أدوات الاتاحة والوصول</span>
-            </h3>
-            <div className="footer-access__items">
+          {/* العمود الرابع: تابعنا على + أدوات الإتاحة */}
+          <div className="footer-social-access section">
+            <h3 className="heading">تابعنا على</h3>
+            <div className="social-buttons-row">
               <button
                 type="button"
-                className="footer-access__btn"
-                aria-label="أدوات الاتاحة والوصول"
-                onClick={() =>
-                  window.alert("أدوات الاتاحة والوصول قيد التجهيز في هذه النسخة.")
-                }
+                className="footer-icon-btn"
+                aria-label="يوتيوب"
+                title="YouTube"
+                onClick={() => window.open("https://www.youtube.com", "_blank", "noopener")}
               >
-                <AccessIcon />
+                <YouTubeIcon />
+              </button>
+              <button
+                type="button"
+                className="footer-icon-btn"
+                aria-label="منصة X"
+                title="X (Twitter)"
+                onClick={() => window.open("https://x.com", "_blank", "noopener")}
+              >
+                <XIcon />
+              </button>
+            </div>
+
+            <h3 className="heading">أدوات الإتاحة والوصول</h3>
+            <div className="social-buttons-row" style={{ marginBottom: 0 }}>
+              <button
+                type="button"
+                className="footer-icon-btn"
+                aria-label="أدوات الإتاحة"
+                title="تفعيل خيارات الإتاحة"
+                onClick={onOpenA11y}
+              >
+                <AccessibilityIcon />
               </button>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* --- Bottom bar --- */}
-      <div className="footer-bottom">
-        <div className="footer-note-wrapper">
-          <p>
-            منصة <span className="copyright-brand">صحة</span> معتمدة من قبل وزارة
-            الصحة © 2026
-          </p>
-          <p className="footer-poweredby">
-            <img
-              src="/assets/LeanVestoIcon-CtC2nEmZ.svg"
-              alt=""
-              className="footer-poweredby__icon"
-            />
-            بدعم وتطوير لين لخدمات الأعمال
-          </p>
-          <ul className="footer-legal-links">
-            <li>
-              <a href="https://www.seha.sa/Content/LandingPages/UserManual.pdf" target="_blank" rel="noreferrer">
+        {/* الشريط الختامي للفوتر */}
+        <div className="footer-bottom">
+          <div className="partner-logos">
+            <div className="partner-badge">رؤية 2030</div>
+            <div className="partner-badge">عام الذكاء الاصطناعي 2026</div>
+            <div className="partner-badge">وزارة الصحة</div>
+            <div className="partner-badge">لين (Lean)</div>
+          </div>
+
+          <div className="footer-legal">
+            <p>منصة صحة معتمدة من قبل وزارة الصحة © 2026</p>
+            <p>بدعم وتطوير لين لخدمات الأعمال</p>
+            <div className="policy-links">
+              <a href="#/usage-guide" onClick={noop}>
                 دليل الاستخدام
               </a>
-            </li>
-            <li>
-              <a href="#/terms-of-use" onClick={(e) => { e.preventDefault(); window.alert("صفحة الشروط والأحكام قيد التجهيز."); }}>
-                الشروط و الاحكام
+              <a href="#/terms" onClick={noop}>
+                الشروط والأحكام
               </a>
-            </li>
-            <li>
-              <a href="#/privacy-policy" onClick={(e) => { e.preventDefault(); window.alert("صفحة سياسة الخصوصية قيد التجهيز."); }}>
+              <a href="#/privacy" onClick={noop}>
                 سياسة الخصوصية
               </a>
-            </li>
-          </ul>
-        </div>
-        <div className="contact">
-          <img alt="lean logo" className="lean-logo" src="/assets/lean-logo.svg" />
-          <span className="contact__divider" />
-          <img
-            alt="moh logo"
-            className="moh-logo"
-            src="/assets/DGA_ministryOfHealthIcon-DDHtoIz3.svg"
-          />
-          <span className="contact__divider" />
-          <img alt="AI year logo" className="ai-logo" src="/assets/DGA_AI_Icon_Footer-CM2tNUiq.svg" />
-          <span className="contact__divider" />
-          <img
-            alt="Vision 2030 logo"
-            className="vision2030-logo"
-            src="/assets/2030V_ision-DYkmr9_g.svg"
-          />
+            </div>
+          </div>
         </div>
       </div>
     </footer>

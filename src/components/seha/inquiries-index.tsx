@@ -107,15 +107,7 @@ export function InquiriesIndex({
 }) {
   return (
     <div className="inquiries-container" dir="rtl">
-      {/* Hero */}
-      <section className="inquiries-hero">
-        <div className="inquiries-hero__inner">
-          <h1>الاستعلامات</h1>
-          <p>اختر الخدمة التي تريد الاستعلام عنها.</p>
-        </div>
-      </section>
-
-      {/* Cards grid */}
+      {/* Cards grid (hero is rendered by the app shell hero-banner-wrapper) */}
       <div className="inquiries-grid">
         {CARDS.map((card) => {
           const inner = (

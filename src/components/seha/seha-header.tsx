@@ -2,235 +2,230 @@
 
 import { useEffect, useState } from "react";
 import { LoginView } from "./login-view";
-import type { SehaView } from "./seha-types";
 
 /**
- * Header — 1:1 port of the reference app-header:
- * logo asset + nav tabs (active = green fill + #54c08a underline bar)
- * + register/login actions, collapsing into a hamburger menu on narrow screens.
+ * Header — exact 1:1 port of the extracted Sehaty markup:
+ *  - fixed .app-header (94px, white, border-bottom #F0F2F5)
+ *  - .header-inner (max-width 1280px): logo (right) / desktop nav (≥992px) / hamburger (left)
+ *  - slide-out .navbar-collapse-drawer (left, 320px) with login button,
+ *    nav links and a register link — identical to the extracted page.
  */
 
-/** Person icon — the exact inline SVG glyph used by the reference login button. */
-function PersonIcon() {
+/** Brand logo — the exact inline SVG from the extracted page (صحة / Seha By Lean). */
+function BrandLogo() {
   return (
     <svg
-      width="20"
-      height="22"
-      viewBox="0 0 20 22"
+      width="120"
+      height="46"
+      viewBox="0 0 150 54"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
+      role="img"
+      aria-label="منصة صحة"
     >
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M9.75 0C6.8505 0 4.5 2.3505 4.5 5.25C4.5 8.14949 6.8505 10.5 9.75 10.5C12.6495 10.5 15 8.14949 15 5.25C15 2.3505 12.6495 0 9.75 0ZM6 5.25C6 3.17893 7.67893 1.5 9.75 1.5C11.8211 1.5 13.5 3.17893 13.5 5.25C13.5 7.32107 11.8211 9 9.75 9C7.67893 9 6 7.32107 6 5.25Z"
-        fill="#161616"
-      />
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M15.9788 13.8292C15.8162 13.7374 15.6726 13.6564 15.5563 13.5872C12.0023 11.4709 7.49809 11.4709 3.94404 13.5872C3.82773 13.6564 3.68405 13.7375 3.52139 13.8293C2.80857 14.2314 1.73106 14.8393 0.992896 15.5618C0.531228 16.0137 0.092574 16.6092 0.0128283 17.3388C-0.0719782 18.1146 0.266485 18.8427 0.945503 19.4896C2.11695 20.6056 3.52274 21.5 5.34104 21.5H14.1593C15.9776 21.5 17.3834 20.6056 18.5548 19.4896C19.2339 18.8427 19.5723 18.1146 19.4875 17.3388C19.4078 16.6092 18.9691 16.0137 18.5075 15.5618C17.7693 14.8393 16.6917 14.2313 15.9788 13.8292ZM4.71146 14.876C7.79264 13.0413 11.7077 13.0413 14.7889 14.876C14.9568 14.976 15.1407 15.0803 15.3334 15.1897C16.046 15.5939 16.8781 16.066 17.4582 15.6338C17.8183 15.9863 17.9718 16.2771 17.9964 16.5017C18.0159 16.6801 17.9708 16.9742 17.5202 17.4035C16.4843 18.3904 15.4318 19 14.1593 19H5.34104C4.0686 19 3.01602 18.3904 1.98017 17.4035C1.52954 16.9742 1.48445 16.6801 1.50395 16.5017C1.52851 16.2771 1.68202 15.9863 2.04214 15.6338C2.62223 15.066 3.45426 14.594 4.16686 14.1897C4.35953 14.0804 4.5436 13.976 4.71146 14.876Z"
-        fill="#161616"
-      />
+      <path d="M128 12L142 26L128 40L114 26L128 12Z" fill="#0EA5E9" fillOpacity="0.85" />
+      <path d="M118 16L130 28L118 40L106 28L118 16Z" fill="#1E3A8A" fillOpacity="0.9" />
+      <text x="52" y="31" fill="#1E293B" fontFamily="Cairo, sans-serif" fontWeight="700" fontSize="24">
+        صحة
+      </text>
+      <text x="48" y="45" fill="#64748B" fontFamily="Cairo, sans-serif" fontWeight="600" fontSize="10">
+        Seha By Lean
+      </text>
     </svg>
   );
 }
 
-const NAV_ITEMS: { key: string; label: string; view?: SehaView }[] = [
+const NAV_ITEMS: { key: string; label: string }[] = [
   { key: "home", label: "الرئيسية" },
   { key: "services", label: "الخدمات" },
   { key: "seha-plus", label: "صحة بلس" },
-  { key: "inquiries", label: "الاستعلامات", view: "inquiries" },
+  { key: "inquiries", label: "الاستعلامات" },
   { key: "faq", label: "الأسئلة الشائعة" },
   { key: "contact", label: "تواصل معنا" },
 ];
 
 export function SehaHeader({
-  view,
-  onNavigate,
+  activeTab,
+  onTabClick,
+  onOpenInquiries,
+  onHome,
 }: {
-  view: SehaView;
-  onNavigate: (view: SehaView) => void;
+  /** currently highlighted nav key (e.g. "inquiries") */
+  activeTab: string;
+  /** called with the nav key on every link click (visual active state) */
+  onTabClick: (key: string) => void;
+  /** navigate to the inquiries index view */
+  onOpenInquiries: () => void;
+  /** navigate back to the sick-leave enquiry (home of this replica) */
+  onHome: () => void;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
 
-  // Lock body scroll while the mobile menu is open.
+  // Lock body scroll while the drawer is open.
   useEffect(() => {
-    document.body.style.overflow = menuOpen ? "hidden" : "";
+    document.body.style.overflow = drawerOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [menuOpen]);
+  }, [drawerOpen]);
 
-  const go = (next: SehaView) => {
-    onNavigate(next);
-    setMenuOpen(false);
+  // Close the drawer on Escape — senior a11y hardening.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDrawerOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawerOpen]);
+
+  /** Shared click behavior: set active tab; "inquiries" opens the index view. */
+  const handleNav = (key: string) => {
+    onTabClick(key);
+    if (key === "inquiries") onOpenInquiries();
+    setDrawerOpen(false);
+  };
+
+  const openLogin = () => {
+    setDrawerOpen(false);
+    setLoginOpen(true);
   };
 
   return (
     <>
+      {/* ==================== الشريط العلوي (Header) ==================== */}
       <header className="app-header">
-        <div className="nav-container">
-          {/* Logo (start side = right in RTL) */}
+        <div className="header-inner">
+          {/* الشعار جهة اليمين */}
           <a
-            className="header-section header-section--logo"
+            className="navbar-brand"
             href="#/"
+            title="منصة صحة"
             onClick={(e) => {
               e.preventDefault();
-              go("sl");
+              onHome();
             }}
-            aria-label="صحة — الرئيسية"
           >
-            <img
-              src="/assets/DGA_logo_Iocn-BgqIrqvL.svg"
-              alt="صحة"
-              className="logo"
-              width={104}
-              height={48}
-            />
+            <div className="logo-svg">
+              <BrandLogo />
+            </div>
           </a>
 
-          {/* Desktop nav tabs */}
-          <nav
-            className="header-section--tabs"
-            aria-label="التنقل الرئيسي"
-            aria-hidden={menuOpen}
-          >
-            {NAV_ITEMS.map((item) => {
-              const active =
-                item.view !== undefined &&
-                (view === "inquiries" || view === "sl");
-              return (
-                <a
-                  key={item.key}
-                  href={item.view ? "#/inquiries" : "#/"}
-                  className={`header-link${active ? " active" : ""}`}
-                  aria-current={active ? "page" : undefined}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (item.view) go(item.view);
-                  }}
-                >
-                  {item.label}
-                </a>
-              );
-            })}
+          {/* روابط التنقل لسطح المكتب */}
+          <nav className="desktop-nav" aria-label="التنقل الرئيسي">
+            {NAV_ITEMS.map((item) => (
+              <a
+                key={item.key}
+                className={`nav-link${activeTab === item.key ? " active" : ""}`}
+                href={item.key === "inquiries" ? "#/inquiries" : "#/"}
+                aria-current={activeTab === item.key ? "page" : undefined}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleNav(item.key);
+                }}
+              >
+                {item.label}
+              </a>
+            ))}
           </nav>
 
-          {/* Auth actions (end side = left in RTL) */}
-          <div className="header-section--actions">
-            <a
-              href="#/account/signup"
-              className="register-btn"
-              onClick={(e) => {
-                e.preventDefault();
-                setLoginOpen(true);
-              }}
-            >
-              إنشاء حساب
-            </a>
+          {/* أزرار اليسار: زر الهامبرغر */}
+          <div className="header-actions">
             <button
               type="button"
-              className="login-btn"
-              onClick={() => setLoginOpen(true)}
+              className="hamburger-btn"
+              id="openDrawerBtn"
+              aria-label="فتح القائمة الجانبية"
+              aria-expanded={drawerOpen}
+              onClick={() => setDrawerOpen(true)}
             >
-              <PersonIcon />
-              تسجيل دخول
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" aria-hidden="true">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
             </button>
           </div>
         </div>
-
-        {/* Mobile hamburger (hidden ≥1400px, like the reference navbar-expand-xxl) */}
-        <button
-          type="button"
-          className="menu-toggle"
-          aria-label={menuOpen ? "إغلاق القائمة" : "فتح القائمة"}
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((v) => !v)}
-        >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#161616"
-            strokeWidth="2"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            {menuOpen ? (
-              <>
-                <path d="M18 6 6 18" />
-                <path d="m6 6 12 12" />
-              </>
-            ) : (
-              <>
-                <path d="M4 6h16" />
-                <path d="M4 12h16" />
-                <path d="M4 18h16" />
-              </>
-            )}
-          </svg>
-        </button>
-
-        {/* Mobile collapsed menu */}
-        {menuOpen && (
-          <div className="mobile-menu" role="dialog" aria-label="قائمة التنقل">
-            <nav aria-label="قائمة التنقل للجوال">
-              {NAV_ITEMS.map((item) => {
-                const active =
-                  item.view !== undefined &&
-                  (view === "inquiries" || view === "sl");
-                return (
-                  <a
-                    key={item.key}
-                    href={item.view ? "#/inquiries" : "#/"}
-                    className={`header-link${active ? " active" : ""}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      if (item.view) go(item.view);
-                      else setMenuOpen(false);
-                    }}
-                  >
-                    {item.label}
-                  </a>
-                );
-              })}
-              <a
-                href="#/account/login"
-                className="header-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setMenuOpen(false);
-                  setLoginOpen(true);
-                }}
-              >
-                تسجيل دخول
-              </a>
-              <a
-                href="#/account/signup"
-                className="header-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setMenuOpen(false);
-                  setLoginOpen(true);
-                }}
-              >
-                إنشاء حساب
-              </a>
-            </nav>
-          </div>
-        )}
       </header>
+
+      {/* ==================== القائمة الجانبية المنبثقة (Drawer) ==================== */}
+      <div
+        className={`drawer-backdrop${drawerOpen ? " show" : ""}`}
+        id="drawerBackdrop"
+        onClick={() => setDrawerOpen(false)}
+        aria-hidden="true"
+      />
+      <aside
+        className={`navbar-collapse-drawer${drawerOpen ? " show" : ""}`}
+        id="sideDrawer"
+        aria-label="القائمة الجانبية"
+        aria-hidden={!drawerOpen}
+      >
+        <div>
+          <div className="drawer-top-bar">
+            {/* زر تسجيل دخول أعلى يمين القائمة */}
+            <button type="button" className="login-drawer-btn" onClick={openLogin}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              <span>تسجيل دخول</span>
+            </button>
+
+            {/* زر إغلاق القائمة (X) أعلى يسار القائمة */}
+            <button
+              type="button"
+              className="close-drawer-btn"
+              aria-label="إغلاق القائمة"
+              onClick={() => setDrawerOpen(false)}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+
+          {/* روابط القائمة الجانبية */}
+          <div className="header-section header-section--tabs navbar-nav">
+            {NAV_ITEMS.map((item) => (
+              <a
+                key={item.key}
+                className={`link nav-link${activeTab === item.key ? " active" : ""}`}
+                href={item.key === "inquiries" ? "#/inquiries" : "#/"}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleNav(item.key);
+                }}
+              >
+                {item.label}
+              </a>
+            ))}
+          </div>
+        </div>
+
+        <div className="drawer-footer-auth">
+          <a
+            href="#/register"
+            className="create-account-link"
+            onClick={(e) => {
+              e.preventDefault();
+              openLogin();
+            }}
+          >
+            إنشاء حساب جديد
+          </a>
+        </div>
+      </aside>
 
       {loginOpen && (
         <LoginView
           onClose={() => setLoginOpen(false)}
           onHome={() => {
             setLoginOpen(false);
-            go("sl");
+            onHome();
           }}
         />
       )}
