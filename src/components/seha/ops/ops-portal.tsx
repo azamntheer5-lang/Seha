@@ -294,6 +294,120 @@ export function OpsPortal({
   const [historyError, setHistoryError] = useState("");
   const [historySearch, setHistorySearch] = useState("");
 
+  // ── نظام الأسماء الذكي: ذاكرة الأطباء والمستشفيات + توليد AI ──
+  const [dirHospitals, setDirHospitals] = useState<{ hospital: string; hospitalEn: string; doctorCount: number }[]>([]);
+  const [dirDoctors, setDirDoctors] = useState<
+    { id: string; doctorName: string; doctorNameEn: string; jobTitleAr: string; jobTitleEn: string; hospital: string; hospitalEn: string; useCount: number }[]
+  >([]);
+  const [aiDoctors, setAiDoctors] = useState<{ nameAr: string; nameEn: string; titleAr: string; titleEn: string }[] | null>(null);
+  const [aiHospital, setAiHospital] = useState<{ ar: string; en: string } | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const dirFetchRef = useRef("");
+
+  const loadHospitals = useCallback(async () => {
+    try {
+      const code = getStoredOpsCode() ?? "";
+      const res = await fetch("/api/ops/doctors", { headers: { "x-access-code": code } });
+      const json = await res.json();
+      if (json.ok && Array.isArray(json.data?.hospitals)) setDirHospitals(json.data.hospitals);
+    } catch {
+      /* directory is a bonus — silent on failure */
+    }
+  }, []);
+
+  // Load the remembered hospitals once the portal opens.
+  useEffect(() => {
+    void loadHospitals();
+  }, [loadHospitals]);
+
+  // When the hospital changes → fetch doctors previously used at it (debounced).
+  useEffect(() => {
+    const hospital = form.hospital.trim();
+    if (hospital.length < 3) {
+      setDirDoctors([]);
+      dirFetchRef.current = "";
+      return;
+    }
+    if (dirFetchRef.current === hospital) return;
+    const t = window.setTimeout(async () => {
+      dirFetchRef.current = hospital;
+      try {
+        const code = getStoredOpsCode() ?? "";
+        const res = await fetch(`/api/ops/doctors?hospital=${encodeURIComponent(hospital)}`, {
+          headers: { "x-access-code": code },
+        });
+        const json = await res.json();
+        if (json.ok && Array.isArray(json.data?.doctors)) setDirDoctors(json.data.doctors);
+      } catch {
+        /* silent */
+      }
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [form.hospital]);
+
+  /** Fill the form from a directory/AI doctor suggestion and remember it. */
+  const pickDoctor = useCallback(
+    (
+      d: { doctorName: string; doctorNameEn?: string; jobTitleAr?: string; jobTitleEn?: string; hospital?: string; hospitalEn?: string },
+      opts?: { save?: boolean }
+    ) => {
+      setForm((f) => ({
+        ...f,
+        doctorName: d.doctorName,
+        doctorNameEn: (d.doctorNameEn || f.doctorNameEn).toUpperCase(),
+        doctorJobTitle: d.jobTitleAr || f.doctorJobTitle,
+        doctorJobTitleEn: d.jobTitleEn || f.doctorJobTitleEn,
+        hospital: d.hospital || f.hospital,
+        hospitalEn: d.hospitalEn || f.hospitalEn,
+      }));
+      setAiDoctors(null);
+      if (opts?.save) {
+        void fetch("/api/ops/doctors", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-access-code": getStoredOpsCode() ?? "" },
+          body: JSON.stringify({
+            doctorName: d.doctorName,
+            doctorNameEn: d.doctorNameEn ?? "",
+            jobTitleAr: d.jobTitleAr ?? "",
+            jobTitleEn: d.jobTitleEn ?? "",
+            hospital: d.hospital ?? form.hospital.trim(),
+            hospitalEn: d.hospitalEn ?? "",
+          }),
+        })
+          .then(() => loadHospitals())
+          .catch(() => undefined);
+      }
+    },
+    [form.hospital, loadHospitals]
+  );
+
+  /** توليد بالذكاء الاصطناعي: أسماء أطباء سعودية واقعية للمستشفى الحالي. */
+  const generateAiDoctors = useCallback(async () => {
+    if (aiLoading) return;
+    setAiLoading(true);
+    setAiError("");
+    setAiDoctors(null);
+    try {
+      const res = await fetch("/api/ops/ai-doctor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-access-code": getStoredOpsCode() ?? "" },
+        body: JSON.stringify({ hospital: form.hospital.trim() }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setAiDoctors(json.data.doctors);
+        setAiHospital(json.data.hospital);
+      } else {
+        setAiError(json.message || "تعذّر التوليد، حاول مرة أخرى");
+      }
+    } catch {
+      setAiError("تعذّر الاتصال بخدمة التوليد");
+    } finally {
+      setAiLoading(false);
+    }
+  }, [aiLoading, form.hospital]);
+
   const setRecord = useCallback((rec: PortalSickLeaveRecord | null) => {
     recordRef.current = rec;
     setRecordState(rec);
@@ -1388,14 +1502,74 @@ export function OpsPortal({
                 <fieldset className="ops-group">
                   <legend>الطبيب والمنشأة</legend>
                   <div className="ops-grid">
-                    <Field label="اسم الطبيب (عربي) *" error={errors.doctorName}>
-                      <input
-                        className={inputCls}
-                        value={form.doctorName}
-                        onChange={(e) => set("doctorName", e.target.value)}
-                        placeholder="د. خالد بن سعد الحربي"
-                      />
-                    </Field>
+                    <div className="ops-field">
+                      <span className="ops-field-label">اسم الطبيب (عربي) *</span>
+                      <div className="ops-inline">
+                        <input
+                          className={inputCls}
+                          value={form.doctorName}
+                          onChange={(e) => set("doctorName", e.target.value)}
+                          placeholder="د. خالد بن سعد الحربي"
+                        />
+                        <button
+                          type="button"
+                          className="ops-mini-btn"
+                          onClick={generateAiDoctors}
+                          disabled={aiLoading}
+                          title="توليد أسماء أطباء بالذكاء الاصطناعي حسب المستشفى"
+                        >
+                          {aiLoading ? "جارٍ التوليد…" : "توليد ذكي"}
+                        </button>
+                      </div>
+                      {errors.doctorName && <span className="ops-field-error">{errors.doctorName}</span>}
+                      {dirDoctors.length > 0 && (
+                        <div className="ops-dir-chips">
+                          <span className="ops-dir-chips-label">أطباء سبق استخدامهم هنا:</span>
+                          {dirDoctors.slice(0, 6).map((d) => (
+                            <button
+                              key={d.id}
+                              type="button"
+                              className="ops-chip"
+                              onClick={() => pickDoctor(d)}
+                              title={`${d.jobTitleAr || ""} — استُخدم ${d.useCount} مرة`}
+                            >
+                              {d.doctorName}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {aiDoctors && (
+                        <div className="ops-dir-chips ops-dir-ai">
+                          <span className="ops-dir-chips-label">
+                            مقترحات الذكاء الاصطناعي{aiHospital?.ar ? ` — ${aiHospital.ar}` : ""}:
+                          </span>
+                          {aiDoctors.map((d) => (
+                            <button
+                              key={d.nameAr}
+                              type="button"
+                              className="ops-chip ops-chip-ai"
+                              onClick={() =>
+                                pickDoctor(
+                                  {
+                                    doctorName: d.nameAr,
+                                    doctorNameEn: d.nameEn,
+                                    jobTitleAr: d.titleAr,
+                                    jobTitleEn: d.titleEn,
+                                    hospital: aiHospital?.ar || form.hospital.trim(),
+                                    hospitalEn: aiHospital?.en || "",
+                                  },
+                                  { save: true }
+                                )
+                              }
+                              title={d.titleAr}
+                            >
+                              {d.nameAr}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {aiError && <span className="ops-field-error">{aiError}</span>}
+                    </div>
                     <Field label="اسم الطبيب (إنجليزي)">
                       <input
                         className={inputCls}
@@ -1420,13 +1594,26 @@ export function OpsPortal({
                         onChange={(e) => set("doctorJobTitleEn", e.target.value)}
                       />
                     </Field>
-                    <Field label="المنشأة الصحية (عربي)">
+                    <div className="ops-field">
+                      <span className="ops-field-label">المنشأة الصحية (عربي)</span>
                       <input
                         className={inputCls}
                         value={form.hospital}
                         onChange={(e) => set("hospital", e.target.value)}
+                        list="ops-hospital-list"
+                        placeholder="مستشفى الملك فهد"
                       />
-                    </Field>
+                      <datalist id="ops-hospital-list">
+                        {dirHospitals.map((h) => (
+                          <option key={h.hospital} value={h.hospital}>
+                            {h.doctorCount > 0 ? `${h.doctorCount} طبيب محفوظ` : ""}
+                          </option>
+                        ))}
+                      </datalist>
+                      {dirDoctors.length > 0 && (
+                        <span className="ops-field-hint">{dirDoctors.length} طبيب محفوظ لهذه المنشأة</span>
+                      )}
+                    </div>
                     <Field label="المنشأة الصحية (إنجليزي)">
                       <input
                         className={inputCls}
@@ -1811,6 +1998,20 @@ function OpsPortalStyles() {
       }
       .ops-inline { display: flex; gap: 8px; align-items: stretch; }
       .ops-inline .ops-input { flex: 1; min-width: 0; }
+      .ops-dir-chips {
+        display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px;
+        max-height: 96px; overflow-y: auto;
+      }
+      .ops-dir-chips-label { font-size: 11px; color: #667085; font-weight: 600; }
+      .ops-chip {
+        border: 1px solid #d0d5dd; background: #f9fafb; color: #344054;
+        border-radius: 999px; padding: 4px 12px; font-family: inherit; font-size: 12px;
+        font-weight: 600; cursor: pointer; transition: all 0.15s;
+      }
+      .ops-chip:hover { border-color: #129153; color: #0d5c3a; background: #e8f5ee; }
+      .ops-chip-ai { border-color: #f2c88a; background: #fdf7ec; color: #8a5a12; }
+      .ops-chip-ai:hover { background: #f9ecd2; }
+      .ops-dir-ai { padding-top: 2px; border-top: 1px dashed #eab308; padding-top: 6px; }
       .ops-mini-btn {
         flex-shrink: 0; border: none; border-radius: 10px; padding: 0 16px;
         background: #e8f5ee; color: #0d5c3a; font-family: inherit; font-size: 13px; font-weight: 700;

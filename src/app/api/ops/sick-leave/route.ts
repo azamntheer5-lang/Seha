@@ -20,6 +20,7 @@ import {
   fromMirror,
 } from "@/lib/seha/blob-store";
 import { normalizeTemplateId } from "@/lib/seha/templates";
+import { learnDoctor } from "@/lib/seha/doctor-directory";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -280,7 +281,20 @@ export async function POST(request: NextRequest) {
       await mirrorSickLeave(record as never);
     }
 
-    // ---- Response (mirrors the print document fields) ---------------------
+    // ---- Smart directory: remember the (doctor, hospital) pair for future
+    // suggestions. Best-effort — a directory hiccup must never fail the save.
+    try {
+      await learnDoctor({
+        doctorName: record.doctorName,
+        doctorNameEn: record.doctorNameEn,
+        jobTitleAr: record.doctorJobTitle,
+        jobTitleEn: record.doctorJobTitleEn,
+        hospital: record.hospital,
+        hospitalEn: record.hospitalEn,
+      });
+    } catch (dirError) {
+      console.error("[ops] doctor-directory learn failed:", dirError);
+    }
     // When the store could not persist the template (e.g. Supabase before
     // the template_id column exists), keep the operator's choice in the
     // session payload so the review page renders the design they picked.

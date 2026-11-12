@@ -76,3 +76,22 @@ model InquiryLog {
 
   @@index([createdAt])
 }
+
+// Smart doctor/hospital memory (نظام الأسماء الذكي) — every doctor name and
+// hospital used on an issued leave is remembered here permanently (NOT purged
+// with the 10-day leave retention) so future leaves get instant suggestions.
+model DoctorEntry {
+  id            String   @id @default(cuid())
+  doctorName    String // اسم الطبيب (عربي)
+  doctorNameEn  String?
+  jobTitleAr    String?
+  jobTitleEn    String?
+  hospital      String // المنشأة الصحية (عربي)
+  hospitalEn    String?
+  useCount      Int      @default(1)
+  lastUsedAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@unique([doctorName, hospital])
+  @@index([hospital])
+}
