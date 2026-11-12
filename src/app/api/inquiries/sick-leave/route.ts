@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { SickLeave } from "@prisma/client";
-import { db } from "@/lib/db";
 import { normalizeServiceCode, maskId } from "@/lib/saudi-id";
 import {
   checkRateLimit,
@@ -12,7 +10,7 @@ import {
   relationshipLabel,
   type InquiryResponse,
 } from "@/lib/seha/domain";
-import { getMirroredSickLeave, fromMirror } from "@/lib/seha/blob-store";
+import { getStore, findForInquiry } from "@/lib/seha/store";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +24,9 @@ const RATE_WINDOW_MS = 60_000; // per minute
  *  1. Sliding-window rate limiting per client IP.
  *  2. Server-side validation identical to the reference contract
  *     (service code non-empty; patient ID = exactly 10 numeric digits).
- *  3. Parameterized Prisma lookup (indexed on patientId + serviceCode).
+ *  3. Lookup through the active store (Supabase when configured, SQLite +
+ *     Blobs mirror otherwise) with a resilient fallback so the customer flow
+ *     never hard-fails — see src/lib/seha/store.ts.
  *  4. Privacy-preserving audit log (masked ID, hashed IP).
  *  5. Stable, typed JSON contract with Arabic error messages.
  */
@@ -80,70 +80,14 @@ export async function GET(request: NextRequest) {
       return fail(400, "VALIDATION_PATIENT_ID", "رقم الهوية خاطئ");
     }
 
-    // ---- 3. Lookup ----------------------------------------------------
-    // 3a. Local SQLite (bundled seeds + anything issued on this instance).
-    let record = await db.sickLeave.findFirst({
-      where: { serviceCode, patientId },
-    });
+    // ---- 3. Lookup (Supabase → SQLite → Blobs mirror, resilient) --------
+    const record = await findForInquiry(serviceCode, patientId);
 
-    // 3b. Durable mirror (Netlify Blobs) — portal-issued records live there
-    //     so they survive instance recycling. On a hit we also hydrate the
-    //     local store so subsequent lookups (and operator edits) are served
-    //     straight from SQLite.
-    if (!record) {
-      const mirrored = await getMirroredSickLeave(serviceCode);
-      if (mirrored && mirrored.patientId === patientId) {
-        record = fromMirror(mirrored);
-        try {
-          const row = fromMirror(mirrored);
-          await db.sickLeave.upsert({
-            where: { serviceCode_patientId: { serviceCode, patientId } },
-            create: {
-              id: row.id,
-              serviceCode: row.serviceCode,
-              patientId: row.patientId,
-              patientName: row.patientName,
-              patientNameEn: row.patientNameEn,
-              patientPhone: row.patientPhone,
-              companionName: row.companionName,
-              relationship: row.relationship,
-              sickLeaveDate: row.sickLeaveDate,
-              dateFrom: row.dateFrom,
-              dateTo: row.dateTo,
-              dateFromHijri: row.dateFromHijri,
-              dateToHijri: row.dateToHijri,
-              durationDays: row.durationDays,
-              doctorName: row.doctorName,
-              doctorNameEn: row.doctorNameEn,
-              doctorJobTitle: row.doctorJobTitle,
-              doctorJobTitleEn: row.doctorJobTitleEn,
-              hospital: row.hospital,
-              hospitalEn: row.hospitalEn,
-              licenseNumber: row.licenseNumber,
-              employerAr: row.employerAr,
-              nationalityAr: row.nationalityAr,
-              nationalityEn: row.nationalityEn,
-              status: row.status,
-              verificationCode: row.verificationCode,
-              addQr: row.addQr,
-              showLicense: row.showLicense,
-              reportTime: row.reportTime,
-              reportDate: row.reportDate,
-              source: row.source,
-              createdAt: row.createdAt,
-              updatedAt: row.updatedAt,
-            },
-            update: {},
-          });
-        } catch {
-          /* hydration is an optimization only — the mirror answer stands */
-        }
-      }
-    }
-
-    await logInquiry({
+    // ---- 4. Audit log (best-effort, never blocks the answer) -------------
+    const store = getStore();
+    await store.logInquiry({
       serviceCode,
-      patientId,
+      patientId: maskId(patientId),
       ipHash: hashIp(ip),
       success: Boolean(record),
       resultCount: record ? 1 : 0,
@@ -180,9 +124,10 @@ export async function GET(request: NextRequest) {
     console.error("[sick-leave] inquiry failed:", error);
     // Best-effort logging; never let logging break the response.
     try {
-      await logInquiry({
+      const store = getStore();
+      await store.logInquiry({
         serviceCode: normalizeServiceCode(serviceCodeRaw),
-        patientId: patientIdRaw.trim(),
+        patientId: maskId(patientIdRaw.trim()),
         ipHash: "n/a",
         success: false,
         resultCount: 0,
@@ -208,27 +153,5 @@ function fail(
   return NextResponse.json(body, {
     status,
     headers: { "Cache-Control": "no-store" },
-  });
-}
-
-async function logInquiry(entry: {
-  serviceCode: string;
-  patientId: string;
-  ipHash: string;
-  success: boolean;
-  resultCount: number;
-  errorCode: string | null;
-}) {
-  // Never log entries that failed before becoming real inquiries.
-  if (!entry.serviceCode || !entry.patientId) return;
-  await db.inquiryLog.create({
-    data: {
-      serviceCode: entry.serviceCode,
-      patientId: maskId(entry.patientId),
-      ipHash: entry.ipHash,
-      success: entry.success,
-      resultCount: entry.resultCount,
-      errorCode: entry.errorCode,
-    },
   });
 }

@@ -94,10 +94,34 @@ bun run db:seed    # insert the deterministic demo records
    (configured via `outputFileTracingIncludes` in `next.config.ts`), so the
    sick-leave lookup works immediately.
 
-> Note: on serverless hosting the SQLite file is read-only per invocation.
-> That is fine for this demo lookup service. For a writable production
-   database, switch `provider` in `prisma/schema.prisma` to Postgres/Turso
-   and set `DATABASE_URL` in the Netlify UI.
+> Note: on serverless hosting the bundled SQLite is read-only; issued
+> records are mirrored to **Netlify Blobs** (durable across instances) and
+> hydrated on demand — see `src/lib/seha/blob-store.ts`. For a fully durable,
+> shared database use **Supabase** (below) — recommended for production.
+
+## Supabase — durable shared storage | تخزين Supabase (موصى به)
+
+<div dir="rtl">
+
+لتفعيل قاعدة بيانات **Supabase** (مشتركة بين كل نسخ الموقع — الحفظ لا يضيع أبدًا والتحقق يعمل من أي مكان):
+
+1. أنشئ المشروع في [supabase.com](https://supabase.com) ثم افتح **SQL Editor** والصق محتوى [`supabase/schema.sql`](supabase/schema.sql) واضغط **Run** — هذا ينشئ الجداول (`sick_leaves` و `inquiry_logs`) مع بيانات العرض التجريبية الثمانية.
+2. في **Netlify**: Site configuration → Environment variables أضف المتغيرين:
+   - `SUPABASE_URL` = رابط المشروع (`https://xxxx.supabase.co` — تجده في Settings → API)
+   - `SUPABASE_SERVICE_KEY` = المفتاح السري (`sb_secret_…` — Settings → API Keys)
+3. أعد النشر (Trigger deploy). بمجرد وجود المتغيرين يتحول الموقع تلقائيًا إلى Supabase.
+
+بدون المتغيرين يعمل الموقع عبر SQLite المدمج + Netlify Blobs — لذا لا يتعطل شيء أبدًا.
+
+</div>
+
+When both `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` are set (Netlify UI →
+Environment variables — **never commit the secret to this public repo**), all
+API routes automatically switch to Supabase over PostgREST (zero extra
+dependencies). Run `supabase/schema.sql` once in the SQL editor to create the
+tables. RLS is enabled with no policies, so only the server-side secret key
+can read/write — the public key sees nothing. Without the variables the app
+keeps working through the bundled SQLite + Netlify Blobs mirror.
 
 ## Deploy to Vercel (alternative)
 

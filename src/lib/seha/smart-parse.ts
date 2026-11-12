@@ -184,6 +184,24 @@ const addDaysIso = (iso: string, days: number): string => {
   return d.toISOString().slice(0, 10);
 };
 
+/**
+ * Parse a date RANGE written on one line — "من X الى Y" (also بدون «من»:
+ * "15-11-2026 الى 19-11-2026"). Separators: الى/إلى/الي/لغاية/حتى/–/-/to.
+ * Returns both ISO dates, or null when the value is not a full range.
+ */
+export function parseDateRange(raw: string): { from: string; to: string } | null {
+  const v = toWesternDigits(raw);
+  const m = v.match(
+    /(?:من|from)?\s*([\d\-/.]{6,10})\s*(?:الى|إلى|الي|لغاية|لغايه|وحتى|حتى|–|—|-|to)\s*([\d\-/.]{6,10})/i
+  );
+  if (!m) return null;
+  const from = parseDateValue(m[1]);
+  const to = parseDateValue(m[2]);
+  // A degenerate "range" (same date) falls back to single-date handling.
+  if (!from || !to || from === to) return null;
+  return { from, to };
+}
+
 /** "3 ايام" · "يومين" · "يوم" · "اسبوع" · "15" → day count (0 = unknown). */
 export function parseDurationDays(raw: string): number {
   const v = normalizeLabel(raw);
@@ -271,6 +289,28 @@ export function parseSmartInput(text: string): SmartParseResult {
           continue;
         }
       }
+      // Date range on an unlabeled line — "الاجازة من 15-11-2026 الى 19-11-2026"
+      if (!bucket.dateFromIso || !bucket.dateToIso) {
+        const range = parseDateRange(value);
+        if (range) {
+          bucket.dateFromIso = range.from;
+          bucket.dateToIso = range.to;
+          recognized.push("تاريخ الاجازة");
+          continue;
+        }
+      }
+      // Bare start date — "من 15-11-2026" (المدة يمدّها لاحقًا)
+      if (!bucket.dateFromIso) {
+        const m = bare.match(/(?:من|from)\s*([\d\-/.]{6,10})/i);
+        if (m) {
+          const iso = parseDateValue(m[1]);
+          if (iso) {
+            bucket.dateFromIso = iso;
+            recognized.push("تبدأ من");
+            continue;
+          }
+        }
+      }
       continue;
     }
 
@@ -355,6 +395,14 @@ export function parseSmartInput(text: string): SmartParseResult {
       continue;
     }
     if (/(من تاريخ|تبدا من|تبدأ من|من يوم|admission|from date|^from$)/.test(L)) {
+      // The value may carry the whole range — "من 15-11-2026 الى 19-11-2026"
+      const range = parseDateRange(value);
+      if (range) {
+        bucket.dateFromIso = range.from;
+        bucket.dateToIso = range.to;
+        recognized.push("تبدأ من");
+        continue;
+      }
       const iso = parseDateValue(value);
       if (iso) {
         bucket.dateFromIso = iso;
@@ -379,6 +427,14 @@ export function parseSmartInput(text: string): SmartParseResult {
       continue;
     }
     if (/(اجاز|إجاز|اجازه|leave date|sick leave)/.test(L)) {
+      // Whole range on the leave-date line — "تاريخ الاجازه: من X الى Y"
+      const range = parseDateRange(value);
+      if (range) {
+        bucket.dateFromIso = range.from;
+        bucket.dateToIso = range.to;
+        recognized.push("تاريخ الاجازة");
+        continue;
+      }
       const iso = parseDateValue(value);
       if (iso) {
         bucket._leaveDateIso = iso;

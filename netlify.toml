@@ -9,6 +9,24 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# SUPABASE (recommended durable storage)
+#
+# When BOTH variables below are present, the API routes store sick leaves in
+# your Supabase project (shared by every serverless instance — saves never get
+# lost, verification works from any instance):
+#
+#   SUPABASE_URL           https://<project-ref>.supabase.co
+#   SUPABASE_SERVICE_KEY   sb_secret_… (Dashboard → Settings → API Keys)
+#
+# ⚠ Set them in the Netlify UI (Site configuration → Environment variables),
+# NOT in this file — this repository is public and secrets must never be
+# committed. Create the tables once with supabase/schema.sql (SQL editor).
+#
+# Without them the app still works through the bundled SQLite (demo seeds +
+# per-instance writes mirrored to Netlify Blobs) — see src/lib/seha/store.ts.
+# ─────────────────────────────────────────────────────────────────────────────
+
 [build.environment]
   NODE_VERSION = "20"
   # Relative SQLite path — resolved against prisma/schema.prisma.

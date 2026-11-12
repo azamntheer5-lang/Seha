@@ -226,13 +226,15 @@ export function SickLeaveDocument({ data }: { data: PortalSickLeaveRecord }) {
         <div className="qr-section">
           <div style={{ marginLeft: 45 }}>
             {data.addQr ? (
-              <QRCodeCanvas
-                value={verificationUrl}
-                size={90}
-                style={{ height: 90, width: 90, margin: 0 }}
-                marginSize={1}
-                level="M"
-              />
+              <span className="sl-qr-box" style={{ display: "inline-block", lineHeight: 0 }}>
+                <QRCodeCanvas
+                  value={verificationUrl}
+                  size={90}
+                  style={{ height: 90, width: 90, margin: 0 }}
+                  marginSize={1}
+                  level="M"
+                />
+              </span>
             ) : (
               <span className="qr-placeholder" />
             )}
@@ -246,7 +248,7 @@ export function SickLeaveDocument({ data }: { data: PortalSickLeaveRecord }) {
               To check the report please visit Seha&rsquo;s official website
             </p>
             <a
-              className="en-text"
+              className="en-text sl-verify-link"
               href={verificationUrl}
               target="_blank"
               rel="noopener noreferrer"

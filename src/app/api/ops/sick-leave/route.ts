@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { SickLeave } from "@prisma/client";
-import { db } from "@/lib/db";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import crypto from "crypto";
 import {
   computeDurationDays,
   generateServiceNumber,
@@ -12,10 +10,16 @@ import {
   type PortalSickLeaveRecord,
 } from "@/lib/seha/ops";
 import {
+  getStore,
+  type SickLeaveRow,
+  type SickLeaveUpdate,
+} from "@/lib/seha/store";
+import {
   getMirroredSickLeave,
   mirrorSickLeave,
   fromMirror,
 } from "@/lib/seha/blob-store";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +63,12 @@ function makeVerificationCode(): string {
   return code;
 }
 
+/** True when an error smells like a unique-constraint race on the pair. */
+function isDuplicateRace(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return msg.includes("23505") || /duplicate|unique constraint/i.test(msg);
+}
+
 /**
  * POST /api/ops/sick-leave
  *
@@ -71,8 +81,9 @@ function makeVerificationCode(): string {
  *   - Re-issuing the same (serviceCode + patientId) pair UPDATES the existing
  *     record in place (same id, same verification code — older PDFs keep
  *     verifying) instead of failing or duplicating.
- *   - On serverless (Netlify) the record is mirrored to Netlify Blobs so it
- *     survives instance recycling and is verifiable from any instance.
+ *   - Storage: Supabase (single durable source of truth) when configured via
+ *     SUPABASE_URL + SUPABASE_SERVICE_KEY; otherwise SQLite, mirrored to
+ *     Netlify Blobs for cross-instance durability.
  *
  * The server still auto-fills everything computable so the operator only
  * enters what a human must: Hijri dates (Umm-al-Qura), inclusive duration,
@@ -141,31 +152,28 @@ export async function POST(request: NextRequest) {
     const reportTime = reportTimeString(now);
     const reportDate = reportDateString(now);
 
-    // ---- Find an existing record for this exact pair ---------------------
-    // 1) Local store first (covers re-issues on the same instance).
-    let existing = await db.sickLeave.findUnique({
-      where: { serviceCode_patientId: { serviceCode, patientId } },
-    });
+    const store = getStore();
 
-    // 2) A freshly generated code can never collide, but an operator-typed
-    //    code may exist only on ANOTHER serverless instance — check the
-    //    durable mirror and hydrate it locally so the re-issue updates it.
-    if (!existing && !generated) {
+    // ---- Find an existing record for this exact pair ---------------------
+    let existing = await store.findByPair(serviceCode, patientId);
+
+    // On the SQLite backend an operator-typed code may exist only on ANOTHER
+    // serverless instance — check the durable Blobs mirror and hydrate it
+    // locally so the re-issue updates it. (Supabase needs no mirror.)
+    if (!existing && store.backend === "sqlite" && !generated) {
       const mirrored = await getMirroredSickLeave(serviceCode);
       if (mirrored && mirrored.patientId === patientId) {
         try {
-          existing = await db.sickLeave.create({ data: hydrateCreate(mirrored) });
+          existing = await store.insert(fromMirror(mirrored) as unknown as SickLeaveRow);
         } catch {
           /* hydrated concurrently by a parallel request — refetch */
-          existing = await db.sickLeave.findUnique({
-            where: { serviceCode_patientId: { serviceCode, patientId } },
-          });
+          existing = await store.findByPair(serviceCode, patientId);
         }
       }
     }
 
     // ---- Persist (create, or update-in-place for a re-issue) -------------
-    const sharedData = {
+    const sharedData: SickLeaveUpdate = {
       patientName,
       patientNameEn: str(body.patientNameEn) || null,
       patientPhone: str(body.patientPhone) || null,
@@ -190,23 +198,44 @@ export async function POST(request: NextRequest) {
       // A re-issue is a fresh print → refresh the printed timestamp.
       reportTime,
       reportDate,
-      source: "portal" as const,
+      source: "portal",
     };
 
-    const record = existing
-      ? await db.sickLeave.update({ where: { id: existing.id }, data: sharedData })
-      : await db.sickLeave.create({
-          data: {
-            serviceCode,
-            patientId,
-            ...sharedData,
-            status: "ACTIVE",
-            verificationCode: makeVerificationCode(),
-          },
-        });
+    let record: SickLeaveRow;
+    if (existing) {
+      record = await store.update(existing.id, sharedData);
+    } else {
+      try {
+        record = await store.insert({
+          id: crypto.randomUUID(),
+          serviceCode,
+          patientId,
+          ...sharedData,
+          status: "ACTIVE",
+          verificationCode: makeVerificationCode(),
+          createdAt: now,
+          updatedAt: now,
+        } as SickLeaveRow);
+      } catch (error) {
+        // Two operators saving the same pair at the same instant — the loser
+        // turns its insert into an update-in-place so BOTH saves succeed.
+        if (isDuplicateRace(error)) {
+          const winner = await store.findByPair(serviceCode, patientId);
+          if (winner) {
+            record = await store.update(winner.id, sharedData);
+          } else {
+            throw error;
+          }
+        } else {
+          throw error;
+        }
+      }
+    }
 
-    // ---- Durable mirror (Netlify Blobs) — best effort --------------------
-    await mirrorSickLeave(record);
+    // ---- Blobs mirror — only when the backend is not durable by itself ----
+    if (!store.durable) {
+      await mirrorSickLeave(record as never);
+    }
 
     // ---- Response (mirrors the print document fields) ---------------------
     return NextResponse.json(
@@ -227,7 +256,7 @@ export async function POST(request: NextRequest) {
  *
  * Commits an edit made on the "صفحة المعاينة والتعديل" (preview & edit page).
  * The server re-validates the record, re-computes the Hijri dates and the
- * inclusive duration, and mirrors the change to the durable store — so the
+ * inclusive duration, and persists through the active store — so the
  * document the customer verifies against always matches the downloaded PDF,
  * on every serverless instance.
  *
@@ -257,28 +286,23 @@ export async function PATCH(request: NextRequest) {
     }
 
     // ---- Locate the record: id → pair → durable mirror -----------------
+    const store = getStore();
     const patientId = str(body.patientId).replace(/\D/g, "");
     const serviceCode = str(body.serviceCode).toUpperCase().replace(/\s+/g, "");
 
-    let existing = str(body.id)
-      ? await db.sickLeave.findUnique({ where: { id: str(body.id) } })
-      : null;
+    let existing = str(body.id) ? await store.findById(str(body.id)) : null;
 
     if (!existing && serviceCode && /^\d{10}$/.test(patientId)) {
-      existing = await db.sickLeave.findUnique({
-        where: { serviceCode_patientId: { serviceCode, patientId } },
-      });
+      existing = await store.findByPair(serviceCode, patientId);
     }
 
-    if (!existing && serviceCode) {
+    if (!existing && serviceCode && store.backend === "sqlite") {
       const mirrored = await getMirroredSickLeave(serviceCode);
       if (mirrored && mirrored.patientId === patientId) {
         try {
-          existing = await db.sickLeave.create({ data: hydrateCreate(mirrored) });
+          existing = await store.insert(fromMirror(mirrored) as unknown as SickLeaveRow);
         } catch {
-          existing = await db.sickLeave.findUnique({
-            where: { serviceCode_patientId: { serviceCode, patientId } },
-          });
+          existing = await store.findByPair(serviceCode, patientId);
         }
       }
     }
@@ -315,9 +339,7 @@ export async function PATCH(request: NextRequest) {
     // claimed by one record. Re-using a code for a DIFFERENT patient is fine.
     const nextCode = serviceCode || existing.serviceCode;
     if (nextCode !== existing.serviceCode || patientId !== existing.patientId) {
-      const clash = await db.sickLeave.findUnique({
-        where: { serviceCode_patientId: { serviceCode: nextCode, patientId } },
-      });
+      const clash = await store.findByPair(nextCode, patientId);
       if (clash && clash.id !== existing.id) {
         return NextResponse.json(
           { ok: false, error: "DUPLICATE", message: "هذا الرمز مستخدم مسبقًا لنفس رقم الهوية في إجازة أخرى" },
@@ -334,37 +356,35 @@ export async function PATCH(request: NextRequest) {
     const dateToHijri = toHijri(dateToIso);
 
     // ---- Persist (report timestamp stays the ORIGINAL issuance stamp) ----
-    const record = await db.sickLeave.update({
-      where: { id: existing.id },
-      data: {
-        serviceCode: nextCode,
-        patientId,
-        patientName,
-        patientNameEn: str(body.patientNameEn) || null,
-        patientPhone: str(body.patientPhone) || null,
-        sickLeaveDate: new Date(`${issueIso}T00:00:00.000Z`),
-        dateFrom: new Date(`${dateFromIso}T00:00:00.000Z`),
-        dateTo: new Date(`${dateToIso}T00:00:00.000Z`),
-        dateFromHijri,
-        dateToHijri,
-        durationDays,
-        doctorName,
-        doctorNameEn: str(body.doctorNameEn) || null,
-        doctorJobTitle: str(body.doctorJobTitle) || "طبيب عام",
-        doctorJobTitleEn: str(body.doctorJobTitleEn) || null,
-        hospital: str(body.hospital) || "المستشفى السعودي الألماني",
-        hospitalEn: str(body.hospitalEn) || "Saudi German Hospital",
-        licenseNumber: str(body.licenseNumber) || null,
-        employerAr: str(body.employerAr) || null,
-        nationalityAr: str(body.nationalityAr) || "السعودية",
-        nationalityEn: str(body.nationalityEn) || "Saudi Arabia",
-        addQr: body.addQr === true,
-        showLicense: body.showLicense !== false,
-      },
+    const record = await store.update(existing.id, {
+      serviceCode: nextCode,
+      patientId,
+      patientName,
+      patientNameEn: str(body.patientNameEn) || null,
+      patientPhone: str(body.patientPhone) || null,
+      sickLeaveDate: new Date(`${issueIso}T00:00:00.000Z`),
+      dateFrom: new Date(`${dateFromIso}T00:00:00.000Z`),
+      dateTo: new Date(`${dateToIso}T00:00:00.000Z`),
+      dateFromHijri,
+      dateToHijri,
+      durationDays,
+      doctorName,
+      doctorNameEn: str(body.doctorNameEn) || null,
+      doctorJobTitle: str(body.doctorJobTitle) || "طبيب عام",
+      doctorJobTitleEn: str(body.doctorJobTitleEn) || null,
+      hospital: str(body.hospital) || "المستشفى السعودي الألماني",
+      hospitalEn: str(body.hospitalEn) || "Saudi German Hospital",
+      licenseNumber: str(body.licenseNumber) || null,
+      employerAr: str(body.employerAr) || null,
+      nationalityAr: str(body.nationalityAr) || "السعودية",
+      nationalityEn: str(body.nationalityEn) || "Saudi Arabia",
+      addQr: body.addQr === true,
+      showLicense: body.showLicense !== false,
     });
 
-    // ---- Durable mirror (Netlify Blobs) — best effort --------------------
-    await mirrorSickLeave(record);
+    if (!store.durable) {
+      await mirrorSickLeave(record as never);
+    }
 
     return NextResponse.json(
       { ok: true, data: toPayload(record) },
@@ -383,83 +403,8 @@ export async function PATCH(request: NextRequest) {
 // Helpers
 // ───────────────────────────────────────────────────────────────────────────
 
-/** Build a Prisma create payload from a mirrored (Blobs) record. */
-function hydrateCreate(mirrored: ReturnType<typeof fromMirror>): PrismaSickLeaveCreateInput {
-  return {
-    id: mirrored.id,
-    serviceCode: mirrored.serviceCode,
-    patientId: mirrored.patientId,
-    patientName: mirrored.patientName,
-    patientNameEn: mirrored.patientNameEn,
-    patientPhone: mirrored.patientPhone,
-    companionName: mirrored.companionName,
-    relationship: mirrored.relationship,
-    sickLeaveDate: mirrored.sickLeaveDate,
-    dateFrom: mirrored.dateFrom,
-    dateTo: mirrored.dateTo,
-    dateFromHijri: mirrored.dateFromHijri,
-    dateToHijri: mirrored.dateToHijri,
-    durationDays: mirrored.durationDays,
-    doctorName: mirrored.doctorName,
-    doctorNameEn: mirrored.doctorNameEn,
-    doctorJobTitle: mirrored.doctorJobTitle,
-    doctorJobTitleEn: mirrored.doctorJobTitleEn,
-    hospital: mirrored.hospital,
-    hospitalEn: mirrored.hospitalEn,
-    licenseNumber: mirrored.licenseNumber,
-    employerAr: mirrored.employerAr,
-    nationalityAr: mirrored.nationalityAr,
-    nationalityEn: mirrored.nationalityEn,
-    status: mirrored.status,
-    verificationCode: mirrored.verificationCode,
-    addQr: mirrored.addQr,
-    showLicense: mirrored.showLicense,
-    reportTime: mirrored.reportTime,
-    reportDate: mirrored.reportDate,
-    source: mirrored.source,
-    createdAt: mirrored.createdAt,
-    updatedAt: mirrored.updatedAt,
-  };
-}
-
-type PrismaSickLeaveCreateInput = {
-  id: string;
-  serviceCode: string;
-  patientId: string;
-  patientName: string;
-  patientNameEn: string | null;
-  patientPhone: string | null;
-  companionName: string | null;
-  relationship: number | null;
-  sickLeaveDate: Date;
-  dateFrom: Date;
-  dateTo: Date;
-  dateFromHijri: string | null;
-  dateToHijri: string | null;
-  durationDays: number;
-  doctorName: string;
-  doctorNameEn: string | null;
-  doctorJobTitle: string;
-  doctorJobTitleEn: string | null;
-  hospital: string;
-  hospitalEn: string | null;
-  licenseNumber: string | null;
-  employerAr: string | null;
-  nationalityAr: string | null;
-  nationalityEn: string | null;
-  status: string;
-  verificationCode: string;
-  addQr: boolean;
-  showLicense: boolean;
-  reportTime: string | null;
-  reportDate: string | null;
-  source: string;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-/** Map a live Prisma row to the portal payload contract. */
-function toPayload(record: SickLeave): PortalSickLeaveRecord {
+/** Map a live row to the portal payload contract. */
+function toPayload(record: SickLeaveRow): PortalSickLeaveRecord {
   return {
     id: record.id,
     serviceCode: record.serviceCode,

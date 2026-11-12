@@ -536,6 +536,37 @@ export function OpsPortal({
       });
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
       pdf.addImage(dataUrl, "PNG", 0, 0, 210, 297, undefined, "FAST");
+
+      // ── CLICKABLE verification link (the customer's #1 requirement) ──
+      // The rasterised sheet renders the link as pixels — overlay real PDF
+      // link annotations exactly on top of the visible link text and QR so
+      // tapping/clicking them in any PDF reader opens the enquiry page with
+      // the service code + national ID auto-filled.
+      const verifyUrl = `${window.location.origin}/#/inquiries/slenquiry?service_num=${encodeURIComponent(
+        rec.serviceCode
+      )}&national_id=${encodeURIComponent(rec.patientId)}`;
+      const rootRect = node.getBoundingClientRect();
+      if (rootRect.width > 0 && rootRect.height > 0) {
+        const kx = 210 / rootRect.width; // CSS px → mm (A4 width)
+        const ky = 297 / rootRect.height; // CSS px → mm (A4 height)
+        const overlayLink = (el: Element | null) => {
+          if (!el) return;
+          const r = el.getBoundingClientRect();
+          if (r.width <= 0 || r.height <= 0) return;
+          pdf.link(
+            (r.left - rootRect.left) * kx,
+            (r.top - rootRect.top) * ky,
+            r.width * kx,
+            r.height * ky,
+            { url: verifyUrl }
+          );
+        };
+        overlayLink(node.querySelector(".sl-verify-link"));
+        if (rec.addQr) {
+          overlayLink(node.querySelector(".sl-qr-box canvas") ?? node.querySelector(".sl-qr-box"));
+        }
+      }
+
       pdf.save(`إجازة مرضية ${rec.serviceCode}.pdf`);
     } catch {
       setDownloadError("تعذّر إنشاء الملف، حاول مرة أخرى");
