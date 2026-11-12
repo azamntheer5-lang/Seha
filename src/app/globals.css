@@ -3037,3 +3037,51 @@ body {
 }
 
 /* logo container: exact size of the Seha by Lean mark */
+
+/* ─────────────────────────────────────────────────────────────
+   بوابة الإصدار — شاشة الحراسة (gate screen for #/ops)
+   ───────────────────────────────────────────────────────────── */
+.ops-gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(900px 500px at 85% -10%, rgba(27, 131, 84, 0.14), transparent 60%),
+    radial-gradient(700px 420px at 10% 110%, rgba(27, 131, 84, 0.1), transparent 55%),
+    #f6f8f7;
+  padding: 24px;
+}
+
+.ops-gate-card {
+  text-align: center;
+  max-width: 420px;
+  font-family: var(--font-plex-arabic), "IBM Plex Sans Arabic", "Cairo", sans-serif;
+}
+
+.ops-gate-icon {
+  width: 66px;
+  height: 66px;
+  margin: 0 auto 18px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #0d5c3a, #1b8354);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 14px 30px rgba(13, 92, 58, 0.32);
+}
+
+.ops-gate-card h1 {
+  margin: 0 0 8px;
+  font-size: 21px;
+  font-weight: 800;
+  color: #101828;
+}
+
+.ops-gate-card p {
+  margin: 0;
+  font-size: 14px;
+  color: #667085;
+  line-height: 1.8;
+}

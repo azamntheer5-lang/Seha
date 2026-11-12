@@ -11,6 +11,8 @@ import { SehaPlusPage } from "./seha-plus-page";
 import { FaqPage } from "./faq-page";
 import { ContactPage } from "./contact-page";
 import { FloatingWidgets } from "./floating-widgets";
+import { OpsPortal, getStoredOpsCode, clearOpsCode } from "./ops/ops-portal";
+import { AccessCodeModal } from "./ops/access-code-modal";
 import { hashToRoute, routeToHash, routeToTab } from "./seha-types";
 import type { SehaRoute } from "./seha-types";
 
@@ -35,6 +37,9 @@ export function SehaApp() {
   const [a11yOpen, setA11yOpen] = useState(false);
   const [largeText, setLargeText] = useState(false);
   const [highContrast, setHighContrast] = useState(false);
+  // Issuing-portal gate: unlocked in-session by the secret logo code.
+  const [opsAuthed, setOpsAuthed] = useState(false);
+  const [opsGateOpen, setOpsGateOpen] = useState(true);
 
   // ---- Hash router (identical mental model to the reference React SPA) ----
   useEffect(() => {
@@ -43,6 +48,11 @@ export function SehaApp() {
         ? hashToRoute(window.location.hash)
         : "sl";
       setRoute((prev) => (prev === next ? prev : next));
+      if (next === "ops") {
+        // A stored code survives refresh inside the same session.
+        setOpsAuthed(!!getStoredOpsCode());
+        setOpsGateOpen(true);
+      }
       if (scroll) window.scrollTo({ top: 0, behavior: "auto" });
     };
     const onHashChange = () => apply(true);
@@ -79,6 +89,58 @@ export function SehaApp() {
   const activeTab = routeToTab(route);
   const isHome = route === "home";
   const isSickLeave = route === "sl";
+
+  // ---- Issuing portal: a completely standalone experience ──────────────
+  if (route === "ops") {
+    if (opsAuthed) {
+      return (
+        <div className="app-shell">
+          <OpsPortal
+            onExit={() => {
+              clearOpsCode();
+              setOpsAuthed(false);
+              navigate("sl");
+            }}
+            onSessionExpired={() => {
+              clearOpsCode();
+              setOpsAuthed(false);
+              setOpsGateOpen(true);
+            }}
+          />
+        </div>
+      );
+    }
+    // Gate screen: the access-code modal over a branded backdrop.
+    return (
+      <div className="app-shell ops-gate" dir="rtl">
+        <div className="ops-gate-card">
+          <div className="ops-gate-icon" aria-hidden="true">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </div>
+          <h1>منطقة مصرّح لهم فقط</h1>
+          <p>بوابة إصدار الإجازات المرضية محمية برمز دخول.</p>
+          <AccessCodeModal
+            open={opsGateOpen}
+            onClose={() => {
+              setOpsGateOpen(false);
+              navigate("sl");
+            }}
+            onSuccess={(code) => {
+              try {
+                sessionStorage.setItem("seha_ops_code", code);
+              } catch {
+                /* private mode */
+              }
+              setOpsAuthed(true);
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   // ---- Hero band copy per route (breadcrumb + h1 + description) ----------
   const hero = (() => {

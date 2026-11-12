@@ -6,12 +6,14 @@ export type SehaRoute =
   | "inquiries" // #/inquiries
   | "sl" // #/inquiries/slenquiry
   | "faq" // #/faq
-  | "contact"; // #/ContactUs
+  | "contact" // #/ContactUs
+  | "ops"; // #/ops — hidden issuing portal (unlocked from the logo)
 
 /** Map a browser hash to a route (unknown/empty → "sl", the inquiry centerpiece). */
 export function hashToRoute(hash: string): SehaRoute {
   const h = hash.replace(/^#/, "").replace(/\/+$/, "").toLowerCase();
-  switch (h) {
+  const [path] = h.split("?");
+  switch (path) {
     case "":
     case "/":
       return "home";
@@ -27,6 +29,8 @@ export function hashToRoute(hash: string): SehaRoute {
       return "faq";
     case "/contactus":
       return "contact";
+    case "/ops":
+      return "ops";
     default:
       return "sl";
   }
@@ -49,6 +53,8 @@ export function routeToHash(route: SehaRoute): string {
       return "#/faq";
     case "contact":
       return "#/ContactUs";
+    case "ops":
+      return "#/ops";
   }
 }
 

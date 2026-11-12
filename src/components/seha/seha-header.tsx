@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { LoginView } from "./login-view";
+import { AccessCodeModal } from "./ops/access-code-modal";
+import { storeOpsCode } from "./ops/ops-portal";
 import { routeToHash } from "./seha-types";
 import type { SehaRoute } from "./seha-types";
 
@@ -122,6 +124,7 @@ export function SehaHeader({
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [codeModalOpen, setCodeModalOpen] = useState(false);
 
   // Lock body scroll while the drawer is open.
   useEffect(() => {
@@ -157,14 +160,14 @@ export function SehaHeader({
       {/* ==================== الشريط العلوي (Header) ==================== */}
       <header className="app-header">
         <div className="header-inner">
-          {/* الشعار جهة اليمين */}
+          {/* الشعار جهة اليمين — الضغط عليه يفتح بوابة الإصدار الخاصة */}
           <a
             className="navbar-brand"
             href={routeToHash("home")}
             title="منصة صحة"
             onClick={(e) => {
               e.preventDefault();
-              onNavigate("home");
+              setCodeModalOpen(true);
             }}
           >
             <div className="logo-svg">
@@ -289,6 +292,17 @@ export function SehaHeader({
           }}
         />
       )}
+
+      {/* بوابة رمز الدخول — تُفتح من الشعار */}
+      <AccessCodeModal
+        open={codeModalOpen}
+        onClose={() => setCodeModalOpen(false)}
+        onSuccess={(code) => {
+          storeOpsCode(code);
+          setCodeModalOpen(false);
+          onNavigate("ops");
+        }}
+      />
     </>
   );
 }

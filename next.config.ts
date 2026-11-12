@@ -20,6 +20,10 @@ const nextConfig: NextConfig = {
       "./db/custom.db",
       "./node_modules/.prisma/**/*",
     ],
+    "/api/ops/sick-leave": [
+      "./db/custom.db",
+      "./node_modules/.prisma/**/*",
+    ],
   },
 };
 

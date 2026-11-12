@@ -19,25 +19,42 @@ datasource db {
 // serviceCode + patientId form the public lookup key pair.
 model SickLeave {
   id               String   @id @default(cuid())
-  serviceCode      String   @unique // رمز الخدمة (normalized, e.g. SL-2025-100234)
-  patientId        String // رقم الهوية / الإقامة (10 digits, checksum-valid)
-  patientName      String // الاسم
+  serviceCode      String   @unique // رمز الخدمة (PSL261…, GSL261… or SL-2025-…)
+  patientId        String // رقم الهوية / الإقامة (10 digits)
+  patientName      String // الاسم (عربي)
+  patientNameEn    String? // الاسم (إنجليزي)
+  patientPhone     String? // جوال العميل (للتواصل)
   companionName    String? // اسم المرافق
   relationship     Int? // صلة القرابة (code, see RELATIONSHIP_LABELS)
   sickLeaveDate    DateTime // تاريخ إصدار تقرير الإجازة
   dateFrom         DateTime // تبدأ من
   dateTo           DateTime // وحتى
+  dateFromHijri    String? // التاريخ الهجري للدخول (DD-MM-YYYY)
+  dateToHijri      String? // التاريخ الهجري للخروج (DD-MM-YYYY)
   durationDays     Int // المدة بالأيام
-  doctorName       String // اسم الطبيب
-  doctorJobTitle   String // المسمى الوظيفي
-  hospital         String // المنشأة الصحية
+  doctorName       String // اسم الطبيب (عربي)
+  doctorNameEn     String? // اسم الطبيب (إنجليزي)
+  doctorJobTitle   String // المسمى الوظيفي (عربي)
+  doctorJobTitleEn String? // المسمى الوظيفي (إنجليزي)
+  hospital         String // المنشأة الصحية (عربي)
+  hospitalEn       String? // المنشأة الصحية (إنجليزي)
+  licenseNumber    String? // رقم ترخيص المنشأة
+  employerAr       String? // جهة العمل
+  nationalityAr    String? // الجنسية (عربي)
+  nationalityEn    String? // الجنسية (إنجليزي)
   status           String   @default("ACTIVE") // ACTIVE | EXPIRED | CANCELLED
   verificationCode String // رمز التحقق (QR)
+  addQr            Boolean  @default(false) // إظهار QR في التقرير
+  showLicense      Boolean  @default(true) // إظهار رقم الترخيص
+  reportTime       String? // طابع الوقت المطبوع (05:22 PM)
+  reportDate       String? // التاريخ المطبوع (Thursday, 29 October 2026)
+  source           String   @default("seed") // seed | portal
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@index([patientId, serviceCode])
   @@index([status])
+  @@index([createdAt])
 }
 
 // Audit log for inquiry requests (privacy-preserving: patient IDs are masked).

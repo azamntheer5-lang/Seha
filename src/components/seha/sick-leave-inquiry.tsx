@@ -60,7 +60,7 @@ export function SickLeaveInquiry() {
     return () => abortRef.current?.abort();
   }, []);
 
-  const submit = useCallback(() => {
+  const submit = useCallback((explicitSerial?: string, explicitId?: string) => {
     if (loading) return;
 
     setResult(null);
@@ -68,8 +68,8 @@ export function SickLeaveInquiry() {
     setSearched(false);
 
     // ---- validation (exact messages from the reference) ----------------
-    const serialVal = serial.trim();
-    const identityVal = idNumber.trim();
+    const serialVal = (explicitSerial ?? serial).trim();
+    const identityVal = (explicitId ?? idNumber).trim();
     const nextErrors: FieldErrors = {};
     if (serialVal.length < 4) nextErrors.serial = SERIAL_ERROR;
     if (!/^\d{10}$/.test(identityVal)) nextErrors.identity = IDENTITY_ERROR;
@@ -128,6 +128,58 @@ export function SickLeaveInquiry() {
         setAlertMessage("خطأ في الاستعلام");
       });
   }, [serial, idNumber, loading]);
+
+  // -----------------------------------------------------------------------
+  // Deep-link auto-fill + auto-run — the verification link printed on the
+  // issued PDF opens this page with the service number and patient ID in the
+  // query string. Both naming conventions are accepted:
+  //   ?service_num=…&national_id=…   (the link format printed on the report)
+  //   ?serviceCode=…&patientId=…     (aliases)
+  // The values can appear in the address-bar search or inside the hash query
+  // (/#/inquiries/slenquiry?service_num=…). When found: fill the fields AND
+  // execute the inquiry immediately so the client sees their data at once.
+  // -----------------------------------------------------------------------
+  const autoRanRef = useRef(false);
+  useEffect(() => {
+    if (autoRanRef.current) return;
+
+    const readParams = (): { sNum: string; nId: string } => {
+      let sNum = "";
+      let nId = "";
+      try {
+        const search = new URLSearchParams(window.location.search);
+        sNum = search.get("service_num") || search.get("serviceCode") || "";
+        nId = search.get("national_id") || search.get("patientId") || "";
+        if (!sNum || !nId) {
+          const hash = window.location.hash || "";
+          const qIndex = hash.indexOf("?");
+          if (qIndex !== -1) {
+            const hashParams = new URLSearchParams(hash.slice(qIndex));
+            sNum = sNum || hashParams.get("service_num") || hashParams.get("serviceCode") || "";
+            nId = nId || hashParams.get("national_id") || hashParams.get("patientId") || "";
+          }
+        }
+      } catch {
+        /* malformed URL — behave like a normal visit */
+      }
+      return { sNum: sNum.trim(), nId: nId.trim() };
+    };
+
+    const { sNum, nId } = readParams();
+    if (!sNum || !nId) return;
+    if (!/^\d{10}$/.test(nId)) return;
+
+    autoRanRef.current = true;
+    // Syncing external URL state into the form on mount is a legitimate
+    // effect use case (post-hydration); the lint rule targets redundant
+    // state derivation, not deep links.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSerial(sNum);
+    setIdNumber(nId);
+    // Run the inquiry immediately with the explicit values (state updates
+    // are async — passing the values directly avoids the stale-closure trap).
+    submit(sNum, nId);
+  }, []);
 
   /** استعلام جديد ↺ — reset to a fresh form (exact reference behavior). */
   const newRequest = useCallback(() => {
