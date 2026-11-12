@@ -1,0 +1,50 @@
+// Prisma schema — Seha Sick Leave Inquiry platform
+// SQLite datasource, production-ready modeling with indexes for fast lookups.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Sick leave certificates issued by health facilities.
+// serviceCode + patientId form the public lookup key pair.
+model SickLeave {
+  id               String   @id @default(cuid())
+  serviceCode      String   @unique // رمز الخدمة (normalized, e.g. SL-2025-100234)
+  patientId        String // رقم الهوية / الإقامة (10 digits, checksum-valid)
+  patientName      String // الاسم
+  companionName    String? // اسم المرافق
+  relationship     Int? // صلة القرابة (code, see RELATIONSHIP_LABELS)
+  sickLeaveDate    DateTime // تاريخ إصدار تقرير الإجازة
+  dateFrom         DateTime // تبدأ من
+  dateTo           DateTime // وحتى
+  durationDays     Int // المدة بالأيام
+  doctorName       String // اسم الطبيب
+  doctorJobTitle   String // المسمى الوظيفي
+  hospital         String // المنشأة الصحية
+  status           String   @default("ACTIVE") // ACTIVE | EXPIRED | CANCELLED
+  verificationCode String // رمز التحقق (QR)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([patientId, serviceCode])
+  @@index([status])
+}
+
+// Audit log for inquiry requests (privacy-preserving: patient IDs are masked).
+model InquiryLog {
+  id          String   @id @default(cuid())
+  serviceCode String
+  patientId   String // masked (e.g. 10******89)
+  ipHash      String? // sha256 of client IP, never the raw IP
+  success     Boolean
+  resultCount Int      @default(0)
+  errorCode   String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}

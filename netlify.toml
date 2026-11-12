@@ -1,0 +1,15 @@
+# Netlify deployment configuration for the Seha (Sick Leave Enquiry) app.
+# The official Next.js runtime plugin is installed automatically by Netlify
+# for Next.js sites, but declaring it here makes the setup explicit.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Relative SQLite path — resolved against prisma/schema.prisma.
+  DATABASE_URL = "file:../db/custom.db"
