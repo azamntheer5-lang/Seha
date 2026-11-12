@@ -71,8 +71,14 @@ export function SickLeaveDocument({ data }: { data: PortalSickLeaveRecord }) {
         .sl-doc .sl-title .leave-report { font-size: 22px; color: #2f6db4; font-weight: 700; margin: 0; padding: 0; margin-bottom: -5px; }
         .sl-doc .sl-title .dark-head { color: #2b3d77; font-size: 19px; font-family: 'SLAmiri', serif; font-weight: 700; }
 
-        .sl-doc table.sl-table { width: 93%; margin: auto; margin-top: 10px; border-collapse: separate;
-          border-spacing: 0; border: 1px solid #dee2e6; border-radius: 8px; background-color: white; overflow: hidden; }
+        .sl-doc table.sl-table { width: 738px; margin: auto; margin-top: 10px; border-collapse: separate;
+          border-spacing: 0; border: 1px solid #dee2e6; border-radius: 8px; background-color: white; overflow: hidden;
+          /* Fixed layout + the pixel colgroup below make the middle column
+             border a deterministic x (130 + 239 = 369px into the table →
+             397px on the 794px sheet), so the footer divider can sit exactly
+             on the same vertical axis. Pixel widths (not %) keep it immune to
+             any first-pass layout resolution. */
+          table-layout: fixed; }
         .sl-doc table.sl-table td { padding: 5px 7px; font-size: 14px; text-align: center;
           border: 1px solid #d0d0d0; vertical-align: middle; background-color: white; }
 
@@ -106,15 +112,22 @@ export function SickLeaveDocument({ data }: { data: PortalSickLeaveRecord }) {
         .sl-doc table.sl-table tbody tr td:nth-child(3) { width: 50%; }
         .sl-doc .transparnt-bg td { background-color: transparent !important; }
 
-        .sl-doc .sl-footer-section { display: flex; justify-content: space-between; }
+        .sl-doc .sl-footer-section { display: flex; justify-content: space-between; position: relative; }
         .sl-doc .qr-section { text-align: center; position: relative; margin-top: 21px; margin-right: -93px; flex: 1; }
         .sl-doc .qr-section a { position: absolute; bottom: 10; right: 25%; }
         .sl-doc .qr-placeholder { display: inline-block; height: 90px; width: 0; }
         .sl-doc .logo-section { display: flex; flex-direction: column; margin-top: 18px !important; flex: 1; margin-left: 65px; }
         .sl-doc .logo-section .text { font-size: 12px; text-align: right; }
         .sl-doc .timestamp { font-size: 13px; font-weight: 700; color: #000000; }
-        .sl-doc .vertical-line { width: 1.5px; height: 190px; background-color: rgb(221, 221, 221);
-          margin-top: 10px !important; margin-left: 174px; margin-right: 5px; flex-shrink: 0; }
+        /* The divider is pinned to the table's middle-column border: the table
+           is 738px wide centred on the 794px sheet (left edge 28px) and its
+           middle border sits at 130 + 239 = 397px. The line therefore stays
+           perfectly level with the column line above it, exactly like the
+           reference report. It is taken out of the flex flow; the invisible
+           spacer below keeps the QR and hospital sections exactly in place. */
+        .sl-doc .vertical-line { position: absolute; left: 397px; top: 10px; width: 1.5px; height: 190px;
+          background-color: #d0d0d0; margin: 0; }
+        .sl-doc .vertical-line-spacer { width: 1.5px; margin-left: 174px; margin-right: 5px; flex-shrink: 0; }
       `}</style>
 
       {/* ────────── الرأس: شعار صحة + شعار المملكة + الفن الهندسي ────────── */}
@@ -139,6 +152,15 @@ export function SickLeaveDocument({ data }: { data: PortalSickLeaveRecord }) {
 
       {/* ────────── جدول البيانات الثنائي اللغة ────────── */}
       <table className="sl-table">
+        {/* Deterministic pixel column widths (130 / 239 / 239 / 130) — keeps
+            the middle column border at exactly 397px so the footer divider
+            below continues the same vertical axis. */}
+        <colgroup>
+          <col style={{ width: 130 }} />
+          <col style={{ width: 239 }} />
+          <col style={{ width: 239 }} />
+          <col style={{ width: 130 }} />
+        </colgroup>
         <tbody>
           <tr className="transparnt-bg">
             <td className="one en-text">Leave ID</td>
@@ -222,9 +244,9 @@ export function SickLeaveDocument({ data }: { data: PortalSickLeaveRecord }) {
 
       {/* ────────── التذييل: التحقق + الطابع الزمني | المستشفى + المركز الوطني ────────── */}
       <div className="sl-footer-section">
-        {/* قسم التحقق والرابط */}
+        {/* قسم التحقق والرابط — كل هذه الكتلة منطقة ضغط واحدة كبيرة في ملف PDF */}
         <div className="qr-section">
-          <div style={{ marginLeft: 45 }}>
+          <div className="sl-verify-block" style={{ marginLeft: 45 }}>
             {data.addQr ? (
               <span className="sl-qr-box" style={{ display: "inline-block", lineHeight: 0 }}>
                 <QRCodeCanvas
@@ -279,7 +301,8 @@ export function SickLeaveDocument({ data }: { data: PortalSickLeaveRecord }) {
           </div>
         </div>
 
-        <div className="vertical-line" />
+        <div className="vertical-line" aria-hidden="true" />
+        <div className="vertical-line-spacer" aria-hidden="true" />
 
         {/* قسم المستشفى + المركز الوطني للمعلومات الصحية */}
         <div className="logo-section">

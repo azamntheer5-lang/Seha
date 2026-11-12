@@ -28,8 +28,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files — .env is intentionally committed (it only contains the portable
-# SQLite path, no secrets). Override locally with .env.local if needed.
+# env files — .env can hold real secrets (e.g. SUPABASE_SERVICE_KEY), so it
+# is local-only; the committed template is .env.example. Override locally
+# with .env.local if needed.
+.env
 .env.local
 .env.*.local
 

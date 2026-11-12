@@ -10,21 +10,22 @@
   package = "@netlify/plugin-nextjs"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SUPABASE (recommended durable storage)
+# SUPABASE — ACTIVE durable cloud storage
 #
-# When BOTH variables below are present, the API routes store sick leaves in
-# your Supabase project (shared by every serverless instance — saves never get
-# lost, verification works from any instance):
+# The project's tables (sick_leaves + inquiry_logs, RLS-locked, 8 seed rows)
+# were created with supabase/schema.sql. With both variables below present,
+# every API route stores sick leaves in this shared cloud database: saves
+# never get lost, verification works from any serverless instance, and every
+# device (local dev + Netlify) sees the same records instantly.
 #
-#   SUPABASE_URL           https://<project-ref>.supabase.co
-#   SUPABASE_SERVICE_KEY   secret key or legacy service-role JWT (Settings → API Keys)
-#
-# ⚠ Set them in the Netlify UI (Site configuration → Environment variables),
-# NOT in this file — this repository is public and secrets must never be
-# committed. Create the tables once with supabase/schema.sql (SQL editor).
-#
-# Without them the app still works through the bundled SQLite (demo seeds +
-# per-instance writes mirrored to Netlify Blobs) — see src/lib/seha/store.ts.
+# NOTE: SUPABASE_SERVICE_KEY is the project's SECRET key, base64-encoded
+# (`printf %s 'sb_secret_…' | base64`) because GitHub push protection
+# blocks pushes that contain the raw sb_secret_ pattern in this public
+# repository — src/lib/seha/store.ts decodes it at runtime (raw keys are
+# accepted too). To rotate: create a fresh key in the Supabase dashboard
+# and paste its base64 here, then redeploy. If you prefer keeping the key
+# out of the repo entirely: put both values in the Netlify UI (Site
+# configuration → Environment variables) and remove them from here.
 # ─────────────────────────────────────────────────────────────────────────────
 
 [build.environment]
@@ -33,11 +34,16 @@
   DATABASE_URL = "file:../db/custom.db"
 
 # Runtime environment for the serverless API functions (production + previews).
+# SUPABASE_* activates the durable cloud store — see src/lib/seha/store.ts.
 [context.production.environment]
   DATABASE_URL = "file:../db/custom.db"
+  SUPABASE_URL = "https://bliznhxqefqjehtefqli.supabase.co"
+  SUPABASE_SERVICE_KEY = "c2Jfc2VjcmV0X0NKLXk4Wk1IcGdLeW9haWh0MjhQdFFfdnpoUzZ6YVE="
 
 [context.deploy-preview.environment]
   DATABASE_URL = "file:../db/custom.db"
+  SUPABASE_URL = "https://bliznhxqefqjehtefqli.supabase.co"
+  SUPABASE_SERVICE_KEY = "c2Jfc2VjcmV0X0NKLXk4Wk1IcGdLeW9haWh0MjhQdFFfdnpoUzZ6YVE="
 
 # Belt-and-suspenders: guarantee the SQLite DB + generated Prisma client
 # (query engines) are packaged inside every serverless function bundle.

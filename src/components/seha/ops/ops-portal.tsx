@@ -539,9 +539,12 @@ export function OpsPortal({
 
       // ── CLICKABLE verification link (the customer's #1 requirement) ──
       // The rasterised sheet renders the link as pixels — overlay real PDF
-      // link annotations exactly on top of the visible link text and QR so
-      // tapping/clicking them in any PDF reader opens the enquiry page with
-      // the service code + national ID auto-filled.
+      // link annotations on top of the visible link text, the QR code AND the
+      // whole verification block, each padded well beyond its visible bounds.
+      // The result: a large, finger-friendly touch zone (~40×8mm for the link
+      // row alone, the full block ~75×35mm) — tapping anywhere on the
+      // verification text, link or QR opens the enquiry page with the service
+      // code + national ID auto-filled.
       const verifyUrl = `${window.location.origin}/#/inquiries/slenquiry?service_num=${encodeURIComponent(
         rec.serviceCode
       )}&national_id=${encodeURIComponent(rec.patientId)}`;
@@ -549,21 +552,27 @@ export function OpsPortal({
       if (rootRect.width > 0 && rootRect.height > 0) {
         const kx = 210 / rootRect.width; // CSS px → mm (A4 width)
         const ky = 297 / rootRect.height; // CSS px → mm (A4 height)
-        const overlayLink = (el: Element | null) => {
+        /** Overlay a link annotation over `el`, expanded by padX/padY CSS px. */
+        const overlayLink = (el: Element | null, padX = 10, padY = 6) => {
           if (!el) return;
           const r = el.getBoundingClientRect();
           if (r.width <= 0 || r.height <= 0) return;
           pdf.link(
-            (r.left - rootRect.left) * kx,
-            (r.top - rootRect.top) * ky,
-            r.width * kx,
-            r.height * ky,
+            (r.left - rootRect.left - padX) * kx,
+            (r.top - rootRect.top - padY) * ky,
+            (r.width + padX * 2) * kx,
+            (r.height + padY * 2) * ky,
             { url: verifyUrl }
           );
         };
-        overlayLink(node.querySelector(".sl-verify-link"));
+        // 1. The entire verification block (QR + Arabic + English lines +
+        //    link) — one big primary touch zone.
+        overlayLink(node.querySelector(".sl-verify-block"), 14, 12);
+        // 2. The visible link text itself, generously padded.
+        overlayLink(node.querySelector(".sl-verify-link"), 16, 10);
+        // 3. The QR code, padded.
         if (rec.addQr) {
-          overlayLink(node.querySelector(".sl-qr-box canvas") ?? node.querySelector(".sl-qr-box"));
+          overlayLink(node.querySelector(".sl-qr-box canvas") ?? node.querySelector(".sl-qr-box"), 10, 10);
         }
       }
 
