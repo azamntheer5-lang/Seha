@@ -3,6 +3,11 @@
 
 generator client {
   provider = "prisma-client-js"
+  // "native"  → build machine (local dev + Netlify Ubuntu build image).
+  // "rhel-openssl-3.0.x" → AWS Lambda runtime that powers Netlify Functions.
+  // Without the rhel target the query engine .so is missing at runtime on
+  // Netlify and every API call fails with "query engine not found".
+  binaryTargets = ["native", "rhel-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {

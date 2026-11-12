@@ -1,2 +1,59 @@
-/** Shared view types for the Seha single-route app shell. */
-export type SehaView = "sl" | "inquiries";
+/** Client-side hash routes — mirrors the reference SPA routing exactly. */
+export type SehaRoute =
+  | "home" // #/
+  | "services" // #/cms/services
+  | "seha-plus" // #/seha-plus
+  | "inquiries" // #/inquiries
+  | "sl" // #/inquiries/slenquiry
+  | "faq" // #/faq
+  | "contact"; // #/ContactUs
+
+/** Map a browser hash to a route (unknown/empty → "sl", the inquiry centerpiece). */
+export function hashToRoute(hash: string): SehaRoute {
+  const h = hash.replace(/^#/, "").replace(/\/+$/, "").toLowerCase();
+  switch (h) {
+    case "":
+    case "/":
+      return "home";
+    case "/cms/services":
+      return "services";
+    case "/seha-plus":
+      return "seha-plus";
+    case "/inquiries":
+      return "inquiries";
+    case "/inquiries/slenquiry":
+      return "sl";
+    case "/faq":
+      return "faq";
+    case "/contactus":
+      return "contact";
+    default:
+      return "sl";
+  }
+}
+
+/** Map a route back to its platform hash. */
+export function routeToHash(route: SehaRoute): string {
+  switch (route) {
+    case "home":
+      return "#/";
+    case "services":
+      return "#/cms/services";
+    case "seha-plus":
+      return "#/seha-plus";
+    case "inquiries":
+      return "#/inquiries";
+    case "sl":
+      return "#/inquiries/slenquiry";
+    case "faq":
+      return "#/faq";
+    case "contact":
+      return "#/ContactUs";
+  }
+}
+
+/** Header nav tab highlighted for a given route. */
+export function routeToTab(route: SehaRoute): string {
+  if (route === "inquiries" || route === "sl") return "inquiries";
+  return route;
+}

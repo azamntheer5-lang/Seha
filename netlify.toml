@@ -13,3 +13,15 @@
   NODE_VERSION = "20"
   # Relative SQLite path — resolved against prisma/schema.prisma.
   DATABASE_URL = "file:../db/custom.db"
+
+# Runtime environment for the serverless API functions (production + previews).
+[context.production.environment]
+  DATABASE_URL = "file:../db/custom.db"
+
+[context.deploy-preview.environment]
+  DATABASE_URL = "file:../db/custom.db"
+
+# Belt-and-suspenders: guarantee the SQLite DB + generated Prisma client
+# (query engines) are packaged inside every serverless function bundle.
+[functions]
+  included_files = ["db/custom.db", "node_modules/.prisma/**"]
