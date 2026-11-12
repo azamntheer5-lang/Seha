@@ -92,6 +92,8 @@ export interface SickLeaveStore {
   readonly durable: boolean;
   findByPair(serviceCode: string, patientId: string): Promise<SickLeaveRow | null>;
   findById(id: string): Promise<SickLeaveRow | null>;
+  /** Issuing-portal history: most recent leaves first (سجل الإجازات). */
+  listRecent(limit?: number): Promise<SickLeaveRow[]>;
   insert(row: SickLeaveRow): Promise<SickLeaveRow>;
   update(id: string, data: SickLeaveUpdate): Promise<SickLeaveRow>;
   firstActiveDemoPair(): Promise<{ serviceCode: string; patientId: string } | null>;
@@ -113,6 +115,10 @@ export const sqliteStore: SickLeaveStore = {
 
   async findById(id) {
     return db.sickLeave.findUnique({ where: { id } });
+  },
+
+  async listRecent(limit = 100) {
+    return db.sickLeave.findMany({ orderBy: { createdAt: "desc" }, take: limit });
   },
 
   async insert(row) {
@@ -404,6 +410,14 @@ function makeSupabaseStore(cfg: SupabaseConfig): SickLeaveStore {
       });
       const r = rows?.[0];
       return r ? fromSupabase(r) : null;
+    },
+
+    async listRecent(limit = 100) {
+      const rows = await rest<SupaRow[]>(cfg, "sick_leaves", {
+        method: "GET",
+        query: [["order", "created_at.desc"], ["limit", String(Math.max(1, Math.min(limit, 500)))]],
+      });
+      return (rows ?? []).map(fromSupabase);
     },
 
     async insert(row) {

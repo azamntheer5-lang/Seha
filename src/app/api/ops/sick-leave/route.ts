@@ -72,6 +72,43 @@ function isDuplicateRace(error: unknown): boolean {
 }
 
 /**
+ * GET /api/ops/sick-leave
+ *
+ * The issuing portal's HISTORY (سجل الإجازات) — every previously created
+ * sick leave, newest first, straight from the durable store. Gated by the
+ * same access code as create/update (header `x-access-code` or ?code=).
+ * Optional `?limit=` caps the list (default 100, max 500).
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const headerCode = request.headers.get("x-access-code");
+    const urlCode = new URL(request.url).searchParams.get("code");
+    if (!isValidAccessCode(headerCode ?? urlCode)) {
+      return NextResponse.json(
+        { ok: false, error: "FORBIDDEN", message: "رمز الدخول غير صالح" },
+        { status: 403 }
+      );
+    }
+
+    const rawLimit = parseInt(new URL(request.url).searchParams.get("limit") ?? "", 10);
+    const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(rawLimit, 500)) : 100;
+
+    const store = getStore();
+    const rows = await store.listRecent(limit);
+    return NextResponse.json(
+      { ok: true, data: rows.map(toPayload) },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  } catch (error) {
+    console.error("ops/sick-leave GET error:", error);
+    return NextResponse.json(
+      { ok: false, error: "SERVER_ERROR", message: "تعذّر تحميل السجل، حاول مرة أخرى" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * POST /api/ops/sick-leave
  *
  * Creates (or RE-ISSUES) a sick leave from the issuing portal.

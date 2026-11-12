@@ -287,6 +287,13 @@ export function OpsPortal({
   const inflightSaveRef = useRef<Promise<void> | null>(null);
   const captureRef = useRef<HTMLDivElement>(null);
 
+  // ── السجل: سجل الإجازات الصادرة (leave history) ──
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<PortalSickLeaveRecord[] | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historySearch, setHistorySearch] = useState("");
+
   const setRecord = useCallback((rec: PortalSickLeaveRecord | null) => {
     recordRef.current = rec;
     setRecordState(rec);
@@ -398,6 +405,7 @@ export function OpsPortal({
       }
       // Saved → open the preview & edit page (صفحة المعاينة والتعديل)
       setRecord(body.data as PortalSickLeaveRecord);
+      setHistory(null); // new leave saved → history cache is stale
       setSaveState("idle");
       setSaveError("");
       setDownloadError("");
@@ -649,10 +657,71 @@ export function OpsPortal({
     }
   };
 
+  // ── السجل: fetch every issued leave and open the history dialog ─────────
+  const openHistory = async () => {
+    setHistoryOpen(true);
+    setHistoryError("");
+    setHistorySearch("");
+    if (history) return; // already loaded — the list is fresh enough after saves
+    setHistoryLoading(true);
+    try {
+      const code = getStoredOpsCode() ?? "";
+      const res = await fetch("/api/ops/sick-leave?limit=200", {
+        headers: { "x-access-code": code },
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body?.ok) {
+        if (res.status === 403) {
+          setHistoryOpen(false);
+          onSessionExpired();
+          return;
+        }
+        setHistoryError(body?.message ?? "تعذّر تحميل السجل");
+        return;
+      }
+      setHistory(body.data as PortalSickLeaveRecord[]);
+    } catch {
+      setHistoryError("تعذّر الاتصال بالخدمة");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  /** Reload the history (called right after a new leave is saved). */
+  const refreshHistory = () => setHistory(null);
+
+  /** Open a past leave on the review page — editable, printable, verifiable. */
+  const loadFromHistory = (rec: PortalSickLeaveRecord) => {
+    setRecord(rec);
+    setSaveState("idle");
+    setSaveError("");
+    setDownloadError("");
+    setMode("review");
+    setHistoryOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Keep the history cache honest: any successful save invalidates it.
+  useEffect(() => {
+    if (saveState === "saved") refreshHistory();
+  }, [saveState]);
+
+  const historyFiltered = useMemo(() => {
+    if (!history) return [];
+    const q = historySearch.trim().toLowerCase();
+    if (!q) return history;
+    return history.filter(
+      (r) =>
+        r.patientName.toLowerCase().includes(q) ||
+        (r.patientNameEn ?? "").toLowerCase().includes(q) ||
+        r.patientId.includes(q) ||
+        r.serviceCode.toLowerCase().includes(q)
+    );
+  }, [history, historySearch]);
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="ops-portal" dir="rtl">
-      {/* Portal top bar */}
       <div className="ops-topbar">
         <div className="ops-topbar-title">
           <span className="ops-topbar-badge" aria-hidden="true">
@@ -670,10 +739,105 @@ export function OpsPortal({
             </p>
           </div>
         </div>
-        <button type="button" className="ops-exit-btn" onClick={onExit}>
-          خروج آمن
-        </button>
+        <div className="ops-topbar-actions">
+          <button type="button" className="ops-history-btn" onClick={openHistory} aria-haspopup="dialog">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            السجل
+          </button>
+          <button type="button" className="ops-exit-btn" onClick={onExit}>
+            خروج آمن
+          </button>
+        </div>
       </div>
+
+      {/* ── سجل الإجازات: every previously created leave ── */}
+      {historyOpen && (
+        <div
+          className="ops-history-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="سجل الإجازات الصادرة"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setHistoryOpen(false);
+          }}
+        >
+          <div className="ops-history-dialog">
+            <div className="ops-history-head">
+              <div>
+                <h2>سجل الإجازات الصادرة</h2>
+                <p>
+                  {historyLoading
+                    ? "جارٍ التحميل…"
+                    : history
+                      ? `${history.length} إجازة — الأحدث أولًا`
+                      : "جميع الإجازات التي أُنشئت من هذه البوابة"}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="ops-history-close"
+                onClick={() => setHistoryOpen(false)}
+                aria-label="إغلاق السجل"
+              >
+                ✕
+              </button>
+            </div>
+
+            <input
+              type="search"
+              className="ops-history-search"
+              placeholder="ابحث بالاسم أو رقم الهوية أو رمز الخدمة…"
+              value={historySearch}
+              onChange={(e) => setHistorySearch(e.target.value)}
+              aria-label="بحث في السجل"
+            />
+
+            <div className="ops-history-list">
+              {historyLoading && (
+                <div className="ops-history-empty">
+                  <span className="ops-spinner" aria-hidden="true" /> جارٍ تحميل السجل…
+                </div>
+              )}
+              {!historyLoading && historyError && (
+                <div className="ops-history-empty ops-history-error">{historyError}</div>
+              )}
+              {!historyLoading && !historyError && historyFiltered.length === 0 && (
+                <div className="ops-history-empty">لا توجد إجازات مطابقة</div>
+              )}
+              {!historyLoading &&
+                !historyError &&
+                historyFiltered.map((r) => (
+                  <button
+                    type="button"
+                    key={r.id}
+                    className="ops-history-item"
+                    onClick={() => loadFromHistory(r)}
+                    title="فتح هذه الإجازة في صفحة المعاينة"
+                  >
+                    <span className="ops-history-item-main">
+                      <span className="ops-history-item-name">{r.patientName}</span>
+                      <span className="ops-history-item-sub" dir="ltr">
+                        {r.serviceCode} · {r.patientId}
+                      </span>
+                    </span>
+                    <span className="ops-history-item-meta">
+                      <span className="ops-history-item-tpl">{getTemplateMeta(r.templateId).nameAr}</span>
+                      <span className="ops-history-item-dates">
+                        {r.dateFromIso} ← {r.dateToIso} ({r.durationDays} {r.durationDays > 1 ? "أيام" : "يوم"})
+                      </span>
+                      <span className="ops-history-item-time" dir="ltr">
+                        {new Date(r.createdAt).toLocaleString("ar-SA", { dateStyle: "short", timeStyle: "short" })}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {mode === "review" && record ? (
         /* ─────────────── صفحة المعاينة والتعديل (Word-like) ─────────────── */
@@ -1404,6 +1568,76 @@ function OpsPortalStyles() {
         cursor: pointer; transition: background 0.15s;
       }
       .ops-exit-btn:hover { background: rgba(255,255,255,0.14); }
+
+      .ops-topbar-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+      .ops-history-btn {
+        display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
+        padding: 9px 18px; border-radius: 10px; border: 1.5px solid rgba(255,255,255,0.55);
+        background: rgba(255,255,255,0.12); color: #fff; font-family: inherit;
+        font-size: 13.5px; font-weight: 700; cursor: pointer; transition: background 0.15s;
+      }
+      .ops-history-btn:hover { background: rgba(255,255,255,0.26); }
+
+      /* ── سجل الإجازات (history dialog) ── */
+      .ops-history-overlay {
+        position: fixed; inset: 0; z-index: 90;
+        background: rgba(6, 40, 26, 0.55); backdrop-filter: blur(2px);
+        display: flex; align-items: center; justify-content: center; padding: 18px;
+      }
+      .ops-history-dialog {
+        width: min(680px, 100%); max-height: min(82vh, 720px);
+        display: flex; flex-direction: column;
+        background: #fff; border-radius: 16px; overflow: hidden;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+      }
+      .ops-history-head {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        padding: 16px 20px 12px; color: #fff;
+        background: linear-gradient(120deg, #0d5c3a, #1b8354);
+      }
+      .ops-history-head h2 { margin: 0; font-size: 17px; font-weight: 700; }
+      .ops-history-head p { margin: 3px 0 0; font-size: 12px; opacity: 0.85; }
+      .ops-history-close {
+        flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px;
+        border: 1.5px solid rgba(255,255,255,0.55); background: transparent;
+        color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
+      }
+      .ops-history-close:hover { background: rgba(255,255,255,0.18); }
+      .ops-history-search {
+        margin: 14px 20px 0; padding: 10px 14px; border-radius: 10px;
+        border: 1.5px solid #cfe0d8; background: #f6faf8;
+        font-family: inherit; font-size: 14px; color: #133528;
+      }
+      .ops-history-search:focus { outline: 2px solid #1b8354; outline-offset: 1px; background: #fff; }
+      .ops-history-list {
+        margin: 12px; padding: 0 8px 10px; overflow-y: auto; flex: 1;
+        display: flex; flex-direction: column; gap: 8px;
+      }
+      .ops-history-empty {
+        display: flex; align-items: center; justify-content: center; gap: 10px;
+        padding: 36px 12px; color: #5a7568; font-size: 14px; text-align: center;
+      }
+      .ops-history-error { color: #a03030; font-weight: 700; }
+      .ops-history-item {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        flex-wrap: wrap; text-align: right; cursor: pointer;
+        padding: 12px 14px; border-radius: 12px; border: 1.5px solid #dbe8e2;
+        background: #fbfdfc; font-family: inherit; transition: border-color 0.15s, background 0.15s;
+      }
+      .ops-history-item:hover { border-color: #1b8354; background: #eef8f2; }
+      .ops-history-item-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+      .ops-history-item-name { font-size: 14.5px; font-weight: 700; color: #12362a; }
+      .ops-history-item-sub { font-size: 12px; color: #4c6a5d; direction: ltr; }
+      .ops-history-item-meta { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+      .ops-history-item-tpl {
+        font-size: 11px; font-weight: 700; color: #0d5c3a;
+        background: #e2f2e9; border-radius: 999px; padding: 2px 10px;
+      }
+      .ops-history-item-dates { font-size: 12px; color: #365a4c; direction: rtl; }
+      .ops-history-item-time { font-size: 11px; color: #7d968a; }
+      .ops-history-list::-webkit-scrollbar { width: 8px; }
+      .ops-history-list::-webkit-scrollbar-thumb { background: #c4d8cf; border-radius: 8px; }
+      .ops-history-list::-webkit-scrollbar-track { background: transparent; }
 
       /* ── Workspace (single column — no live preview) ── */
       .ops-workspace {
