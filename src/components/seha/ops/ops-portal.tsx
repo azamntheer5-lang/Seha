@@ -375,7 +375,11 @@ export function OpsPortal({
             hospitalEn: d.hospitalEn ?? "",
           }),
         })
-          .then(() => loadHospitals())
+          .then(async (r) => {
+            const json = await r.json().catch(() => null);
+            if (json?.ok && Array.isArray(json.data?.doctors)) setDirDoctors(json.data.doctors);
+            await loadHospitals();
+          })
           .catch(() => undefined);
       }
     },
