@@ -29,7 +29,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 [build.environment]
-  NODE_VERSION = "20"
+  # Node 24 — Netlify's current default for new sites (Node 20 reached EOL
+  # in April 2026 and is no longer provisioned, which fails new builds).
+  NODE_VERSION = "24"
   # Relative SQLite path — resolved against prisma/schema.prisma.
   DATABASE_URL = "file:../db/custom.db"
 
