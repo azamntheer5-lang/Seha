@@ -3,32 +3,39 @@
 /**
  * OpsPortal — بوابة إصدار الإجازات المرضية (المشغل الخاص).
  *
- * Unlocked from the site logo + secret code. Ports the previous issuing
- * system's workflow:
- *   1. Smart extraction tab — paste a WhatsApp secretary message or a report
- *      text, or upload a photo of the paper; the platform AI extracts every
- *      field and auto-fills the form.
- *   2. Form tab — full bilingual document data with live auto-computation
+ * Unlocked from the site logo + secret code. Workflow:
+ *   1. الادخال الذكي — a plain TEXT box. A client-side parser runs on every
+ *      keystroke and fills the form instantly as the data completes. No AI
+ *      call, no upload, no failure — text only, always.
+ *   2. نموذج الإجازة — full bilingual document data with live auto-computation
  *      (service number, Umm-al-Qura Hijri dates, inclusive duration).
- *   3. Live A4 preview that fills automatically as data is typed.
- *   4. Issue → saved to the public inquiry database → print/Save-as-PDF
- *      through the browser's vector engine (selectable Arabic text).
+ *   3. «حفظ وإصدار التقرير» opens صفحة المعاينة والتعديل — a Word-like
+ *      review page: the A4 document on one side, its fields on the other.
+ *      Every edit updates the document IMMEDIATELY and auto-saves to the
+ *      public inquiry database (debounced), so what the customer verifies
+ *      always matches the file.
+ *   4. تحميل PDF — a REAL file download (no print dialog): the document is
+ *      rendered off-screen at full A4 size, rasterised at 3× and packed
+ *      into a true PDF in the browser.
  *   5. The verification link on the report auto-fills AND auto-runs the
  *      public inquiry for the client.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { SickLeaveDocument } from "./sick-leave-document";
 import {
   computeDurationDays,
   generateServiceNumber,
   toHijri,
-  reportDateString,
-  reportTimeString,
-  type ExtractionResult,
+  type PortalSickLeaveInput,
   type PortalSickLeaveRecord,
 } from "@/lib/seha/ops";
+import {
+  NATIONALITY_EN,
+  parseSmartInput,
+  type SmartParseResult,
+  type SmartParsedFields,
+} from "@/lib/seha/smart-parse";
 
 const SESSION_KEY = "seha_ops_code";
 
@@ -57,7 +64,7 @@ export function clearOpsCode() {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// Form model
+// Form model (workspace)
 // ───────────────────────────────────────────────────────────────────────────
 
 type FormState = {
@@ -108,88 +115,32 @@ const emptyForm = (): FormState => ({
   showLicense: true,
 });
 
-const NATIONALITY_EN: Record<string, string> = {
-  "السعودية": "Saudi Arabia",
-  "سعودي": "Saudi Arabia",
-  "مصري": "Egypt",
-  "يمني": "Yemen",
-  "سوداني": "Sudan",
-  "هندي": "India",
-  "باكستاني": "Pakistan",
-  "بنغلاديشي": "Bangladesh",
-  "سوري": "Syria",
-  "أردني": "Jordan",
-  "فلسطيني": "Palestine",
-  "إثيوبي": "Ethiopia",
-  "اثيوبي": "Ethiopia",
-  "نيجيري": "Nigeria",
-  "كيني": "Kenya",
-  "أوغندي": "Uganda",
-  "اوجندي": "Uganda",
-  "سريلانكي": "Sri Lanka",
-  "نيبالي": "Nepal",
-  "فلبيني": "Philippines",
-  "إندونيسي": "Indonesia",
-  "اندونيسي": "Indonesia",
-  "بورمي": "Myanmar",
-  "صومالي": "Somalia",
-  "تشادي": "Chad",
-  "إريتري": "Eritrea",
-  "اريتري": "Eritrea",
-  "أفغاني": "Afghanistan",
-  "افغاني": "Afghanistan",
-  "لبناني": "Lebanon",
-  "عماني": "Oman",
-  "بحريني": "Bahrain",
-  "كويتي": "Kuwait",
-  "قطري": "Qatar",
-  "إماراتي": "UAE",
-  "اماراتي": "UAE",
-  "تونسي": "Tunisia",
-  "جزائري": "Algeria",
-  "مغربي": "Morocco",
-  "موريتاني": "Mauritania",
-  "جيبوتي": "Djibouti",
-  "تنزاني": "Tanzania",
-  "غاني": "Ghana",
-  "مالي": "Mali",
-  "نيجيري": "Nigeria",
-  "فيتنامي": "Vietnam",
-  "تايلندي": "Thailand",
-  "ماليزي": "Malaysia",
-  "تركي": "Turkey",
-  "أذربيجاني": "Azerbaijan",
-  "أوزبكي": "Uzbekistan",
-  "قيرغيزي": "Kyrgyzstan",
-  "طاجيكي": "Tajikistan",
-  "كازاخستاني": "Kazakhstan",
-};
-
-/** Apply the AI extraction result onto the form (only non-empty fields). */
-function applyExtraction(form: FormState, ex: Partial<ExtractionResult>): FormState {
+/** Merge the live-parsed smart-input fields onto the form (non-empty only). */
+function applyParsed(form: FormState, p: Partial<SmartParsedFields>): FormState {
   const next = { ...form };
   const set = (v: string | undefined, apply: (val: string) => void) => {
     if (v && v.trim()) apply(v.trim());
   };
-  set(ex.serviceNum || ex.leaveId, (v) => (next.serviceCode = v.toUpperCase()));
-  set(ex.nationalID, (v) => (next.patientId = v.replace(/\D/g, "")));
-  set(ex.phone, (v) => (next.patientPhone = v));
-  set(ex.name, (v) => (next.patientNameEn = v));
-  set(ex.nameArabic, (v) => (next.patientName = v));
-  set(ex.admissionDate, (v) => (next.dateFromIso = v));
-  set(ex.dischargeDate, (v) => (next.dateToIso = v));
-  set(ex.issueDate, (v) => (next.sickLeaveDateIso = v));
-  set(ex.doctorName, (v) => (next.doctorNameEn = v));
-  set(ex.doctorNameArabic, (v) => (next.doctorName = v));
-  set(ex.physicianPosition, (v) => (next.doctorJobTitleEn = v));
-  set(ex.physicianPositionArabic, (v) => (next.doctorJobTitle = v));
-  set(ex.hospitalNameEnglish, (v) => (next.hospitalEn = v));
-  set(ex.hospitalNameArabic, (v) => (next.hospital = v));
-  set(ex.licenseNumber, (v) => (next.licenseNumber = v));
-  set(ex.employer, (v) => (next.employerAr = v));
-  set(ex.nationality, (v) => {
+  set(p.serviceCode, (v) => (next.serviceCode = v.toUpperCase()));
+  set(p.patientId, (v) => (next.patientId = v.replace(/\D/g, "")));
+  set(p.patientPhone, (v) => (next.patientPhone = v));
+  set(p.patientName, (v) => (next.patientName = v));
+  set(p.patientNameEn, (v) => (next.patientNameEn = v.toUpperCase()));
+  set(p.dateFromIso, (v) => (next.dateFromIso = v));
+  set(p.dateToIso, (v) => (next.dateToIso = v));
+  set(p.sickLeaveDateIso, (v) => (next.sickLeaveDateIso = v));
+  set(p.doctorName, (v) => (next.doctorName = v));
+  set(p.doctorNameEn, (v) => (next.doctorNameEn = v.toUpperCase()));
+  set(p.doctorJobTitle, (v) => (next.doctorJobTitle = v));
+  set(p.doctorJobTitleEn, (v) => (next.doctorJobTitleEn = v));
+  set(p.hospital, (v) => (next.hospital = v));
+  set(p.hospitalEn, (v) => (next.hospitalEn = v));
+  set(p.licenseNumber, (v) => (next.licenseNumber = v));
+  set(p.employerAr, (v) => (next.employerAr = v));
+  set(p.nationalityAr, (v) => {
     next.nationalityAr = v;
-    if (NATIONALITY_EN[v.trim()]) next.nationalityEn = NATIONALITY_EN[v.trim()];
+    const en = NATIONALITY_EN[v.trim()];
+    if (en) next.nationalityEn = en;
   });
   return next;
 }
@@ -221,9 +172,22 @@ function Field({
 
 const inputCls = "ops-input";
 
+/** Which required fields are still missing (smart-input live status). */
+function missingLabels(p: SmartParseResult): string[] {
+  const missing: string[] = [];
+  if (!p.hasName) missing.push("الاسم");
+  if (!p.hasId) missing.push("رقم الهوية");
+  if (!p.hasDoctor) missing.push("اسم الطبيب");
+  if (!p.hasFrom) missing.push("تاريخ بداية الإجازة");
+  if (!p.hasTo) missing.push("تاريخ نهاية الإجازة");
+  return missing;
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // The portal
 // ───────────────────────────────────────────────────────────────────────────
+
+type SaveState = "idle" | "saving" | "saved" | "error";
 
 export function OpsPortal({
   onExit,
@@ -232,22 +196,38 @@ export function OpsPortal({
   onExit: () => void;
   onSessionExpired: () => void;
 }) {
-  const [tab, setTab] = useState<"ai" | "form">("ai");
+  const [mode, setMode] = useState<"workspace" | "review">("workspace");
+  const [tab, setTab] = useState<"smart" | "form">("smart");
   const [form, setForm] = useState<FormState>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [issuing, setIssuing] = useState(false);
-  const [issued, setIssued] = useState<PortalSickLeaveRecord | null>(null);
+  const [autoNotice, setAutoNotice] = useState("");
+
+  // ── Smart input tab ──
+  const [smartText, setSmartText] = useState("");
+  const [smartResult, setSmartResult] = useState<SmartParseResult | null>(null);
+  const completeRef = useRef(false);
+  const advanceTimerRef = useRef<number | null>(null);
+  const noticeTimerRef = useRef<number | null>(null);
+
+  // ── Review page (صفحة المعاينة والتعديل) ──
+  const [record, setRecordState] = useState<PortalSickLeaveRecord | null>(null);
+  const recordRef = useRef<PortalSickLeaveRecord | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [saveError, setSaveError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
+  const saveTimerRef = useRef<number | null>(null);
+  const inflightSaveRef = useRef<Promise<void> | null>(null);
+  const captureRef = useRef<HTMLDivElement>(null);
 
-  // AI tab state
-  const [aiText, setAiText] = useState("");
-  const [aiImage, setAiImage] = useState<{ base64: string; mime: string; name: string } | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState("");
-  const [aiNotice, setAiNotice] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const setRecord = useCallback((rec: PortalSickLeaveRecord | null) => {
+    recordRef.current = rec;
+    setRecordState(rec);
+  }, []);
 
-  // Live-computed values (same algorithms the server applies on save)
+  // Live-computed values for the form hints (same algorithms as the server)
   const liveDuration = useMemo(
     () => computeDurationDays(form.dateFromIso, form.dateToIso),
     [form.dateFromIso, form.dateToIso]
@@ -255,140 +235,42 @@ export function OpsPortal({
   const liveFromHijri = useMemo(() => toHijri(form.dateFromIso), [form.dateFromIso]);
   const liveToHijri = useMemo(() => toHijri(form.dateToIso), [form.dateToIso]);
 
-  // The document data used for the live preview (before issuing) and print
-  // (after issuing, the server-stamped record).
-  const previewData: PortalSickLeaveRecord = useMemo(
-    () => ({
-      id: issued?.id ?? "preview",
-      serviceCode: form.serviceCode || "PSL261________",
-      patientId: form.patientId || "__________",
-      patientName: form.patientName || "—",
-      patientNameEn: form.patientNameEn || "—",
-      patientPhone: form.patientPhone,
-      sickLeaveDateIso: form.sickLeaveDateIso,
-      dateFromIso: form.dateFromIso,
-      dateToIso: form.dateToIso,
-      doctorName: form.doctorName || "—",
-      doctorNameEn: form.doctorNameEn || "—",
-      doctorJobTitle: form.doctorJobTitle,
-      doctorJobTitleEn: form.doctorJobTitleEn,
-      hospital: form.hospital,
-      hospitalEn: form.hospitalEn,
-      licenseNumber: form.licenseNumber,
-      employerAr: form.employerAr,
-      nationalityAr: form.nationalityAr,
-      nationalityEn: form.nationalityEn,
-      addQr: form.addQr,
-      showLicense: form.showLicense,
-      dateFromHijri: issued?.dateFromHijri ?? liveFromHijri,
-      dateToHijri: issued?.dateToHijri ?? liveToHijri,
-      durationDays: issued?.durationDays ?? liveDuration,
-      reportTime: issued?.reportTime ?? reportTimeString(),
-      reportDate: issued?.reportDate ?? reportDateString(),
-      verificationCode: issued?.verificationCode ?? "VRF-PREVIEW",
-      createdAt: issued?.createdAt ?? new Date().toISOString(),
-    }),
-    [form, issued, liveDuration, liveFromHijri, liveToHijri]
-  );
-
-  const printData = issued ?? previewData;
-
-  // ── Print plumbing ──────────────────────────────────────────────────────
+  // Clean timers on unmount
   useEffect(() => {
-    const after = () => document.body.classList.remove("ops-printing");
-    window.addEventListener("afterprint", after);
     return () => {
-      window.removeEventListener("afterprint", after);
-      document.body.classList.remove("ops-printing");
+      if (advanceTimerRef.current) window.clearTimeout(advanceTimerRef.current);
+      if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
     };
   }, []);
 
-  const printDocument = useCallback(() => {
-    document.body.classList.add("ops-printing");
-    // Let the browser apply the print layout, then open the dialog.
-    requestAnimationFrame(() => {
-      setTimeout(() => window.print(), 60);
-    });
-  }, []);
+  // ── Smart input: parse on EVERY keystroke, fill instantly ───────────────
+  const onSmartChange = (value: string) => {
+    setSmartText(value);
+    const parsed = parseSmartInput(value);
+    setSmartResult(parsed);
+    setForm((f) => applyParsed(f, parsed.fields));
 
-  const verificationLink = useMemo(() => {
-    if (typeof window === "undefined" || !issued) return "";
-    return `${window.location.origin}/#/inquiries/slenquiry?service_num=${encodeURIComponent(issued.serviceCode)}&national_id=${encodeURIComponent(issued.patientId)}`;
-  }, [issued]);
-
-  const copyLink = async () => {
-    if (!verificationLink) return;
-    try {
-      await navigator.clipboard.writeText(verificationLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      /* clipboard unavailable */
-    }
-  };
-
-  // ── AI extraction ────────────────────────────────────────────────────────
-  const pickImage = (file: File | null) => {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setAiError("الملف المرفق ليس صورة");
-      return;
-    }
-    if (file.size > 6 * 1024 * 1024) {
-      setAiError("حجم الصورة كبير جدًا (الحد 6 ميجابايت)");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result || "");
-      const comma = result.indexOf(",");
-      setAiImage({
-        base64: result.slice(comma + 1),
-        mime: file.type || "image/jpeg",
-        name: file.name,
-      });
-      setAiError("");
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const runExtraction = async () => {
-    if (aiLoading) return;
-    if (!aiText.trim() && !aiImage) {
-      setAiError("ألصق نصًا أو ارفع صورة أولًا");
-      return;
-    }
-    setAiLoading(true);
-    setAiError("");
-    setAiNotice("");
-    try {
-      const code = getStoredOpsCode() ?? "";
-      const res = await fetch("/api/ops/extract", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-access-code": code },
-        body: JSON.stringify(
-          aiImage
-            ? { imageBase64: aiImage.base64, imageMime: aiImage.mime }
-            : { text: aiText }
-        ),
-      });
-      const body = await res.json().catch(() => null);
-      if (!res.ok || !body?.ok) {
-        if (res.status === 403) {
-          onSessionExpired();
-          return;
-        }
-        setAiError(body?.message ?? "تعذّر الاستخراج، حاول مرة أخرى");
-        return;
+    if (parsed.isComplete) {
+      if (!completeRef.current) {
+        completeRef.current = true;
+        if (advanceTimerRef.current) window.clearTimeout(advanceTimerRef.current);
+        advanceTimerRef.current = window.setTimeout(() => {
+          advanceTimerRef.current = null;
+          setTab("form");
+          setAutoNotice(
+            "تمت تعبئة النموذج تلقائيًا من الادخال الذكي — راجع البيانات ثم اضغط «حفظ وإصدار التقرير»"
+          );
+          if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+          noticeTimerRef.current = window.setTimeout(() => setAutoNotice(""), 9000);
+        }, 800);
       }
-      const fields = body.data as Partial<ExtractionResult>;
-      setForm((f) => applyExtraction(f, fields));
-      setAiNotice(`تم تعبئة ${body.filled} حقلًا تلقائيًا — راجع النموذج وأكمل الناقص`);
-      setTab("form");
-    } catch {
-      setAiError("تعذّر الاتصال بالخدمة");
-    } finally {
-      setAiLoading(false);
+    } else {
+      completeRef.current = false;
+      if (advanceTimerRef.current) {
+        window.clearTimeout(advanceTimerRef.current);
+        advanceTimerRef.current = null;
+      }
     }
   };
 
@@ -447,7 +329,12 @@ export function OpsPortal({
         setErrors({ submit: body?.message ?? "تعذّر حفظ الإجازة" });
         return;
       }
-      setIssued(body.data as PortalSickLeaveRecord);
+      // Saved → open the preview & edit page (صفحة المعاينة والتعديل)
+      setRecord(body.data as PortalSickLeaveRecord);
+      setSaveState("idle");
+      setSaveError("");
+      setDownloadError("");
+      setMode("review");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
       setErrors({ submit: "تعذّر الاتصال بالخدمة" });
@@ -458,30 +345,193 @@ export function OpsPortal({
 
   const resetAll = () => {
     setForm(emptyForm());
-    setIssued(null);
     setErrors({});
-    setAiText("");
-    setAiImage(null);
-    setAiNotice("");
-    setAiError("");
-    setTab("ai");
+    setSmartText("");
+    setSmartResult(null);
+    setAutoNotice("");
+    completeRef.current = false;
+    if (advanceTimerRef.current) window.clearTimeout(advanceTimerRef.current);
+    setRecord(null);
+    setSaveState("idle");
+    setSaveError("");
+    setDownloadError("");
+    setMode("workspace");
+    setTab("smart");
   };
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
+  // ── Review page: live edit + debounced auto-save ─────────────────────────
+
+  const sendSave = useCallback(
+    async (rec: PortalSickLeaveRecord) => {
+      setSaveState("saving");
+      setSaveError("");
+      const payload: PortalSickLeaveInput & { id: string } = {
+        id: rec.id,
+        serviceCode: rec.serviceCode,
+        patientId: rec.patientId,
+        patientName: rec.patientName,
+        patientNameEn: rec.patientNameEn,
+        patientPhone: rec.patientPhone,
+        sickLeaveDateIso: rec.sickLeaveDateIso,
+        dateFromIso: rec.dateFromIso,
+        dateToIso: rec.dateToIso,
+        doctorName: rec.doctorName,
+        doctorNameEn: rec.doctorNameEn,
+        doctorJobTitle: rec.doctorJobTitle,
+        doctorJobTitleEn: rec.doctorJobTitleEn,
+        hospital: rec.hospital,
+        hospitalEn: rec.hospitalEn,
+        licenseNumber: rec.licenseNumber,
+        employerAr: rec.employerAr,
+        nationalityAr: rec.nationalityAr,
+        nationalityEn: rec.nationalityEn,
+        addQr: rec.addQr,
+        showLicense: rec.showLicense,
+      };
+      try {
+        const code = getStoredOpsCode() ?? "";
+        const res = await fetch("/api/ops/sick-leave", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", "x-access-code": code },
+          body: JSON.stringify(payload),
+        });
+        const body = await res.json().catch(() => null);
+        if (!res.ok || !body?.ok) {
+          if (res.status === 403) {
+            onSessionExpired();
+            return;
+          }
+          setSaveState("error");
+          setSaveError(body?.message ?? "تعذّر حفظ التعديلات");
+          return;
+        }
+        const data = body.data as PortalSickLeaveRecord;
+        // Merge ONLY the server-computed fields — never clobber live typing.
+        const current = recordRef.current;
+        if (current && current.id === data.id) {
+          const merged: PortalSickLeaveRecord = {
+            ...current,
+            dateFromHijri: data.dateFromHijri,
+            dateToHijri: data.dateToHijri,
+            durationDays: data.durationDays,
+          };
+          setRecord(merged);
+        }
+        setSaveState("saved");
+        window.setTimeout(() => setSaveState((s) => (s === "saved" ? "idle" : s)), 2500);
+      } catch {
+        setSaveState("error");
+        setSaveError("تعذّر الاتصال بالخدمة");
+      }
+    },
+    [onSessionExpired, setRecord]
+  );
+
+  const updateRecord = useCallback(
+    <K extends keyof PortalSickLeaveInput>(key: K, value: PortalSickLeaveInput[K]) => {
+      const current = recordRef.current;
+      if (!current) return;
+      const next = { ...current, [key]: value } as PortalSickLeaveRecord;
+      // Instant client-side recompute so the preview never lags behind.
+      if (key === "dateFromIso" || key === "dateToIso") {
+        next.dateFromHijri = toHijri(next.dateFromIso);
+        next.dateToHijri = toHijri(next.dateToIso);
+        next.durationDays = computeDurationDays(next.dateFromIso, next.dateToIso);
+      }
+      setRecord(next);
+      // Word-style autosave: debounce while typing, then commit.
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = window.setTimeout(() => {
+        saveTimerRef.current = null;
+        inflightSaveRef.current = sendSave(recordRef.current as PortalSickLeaveRecord);
+      }, 800);
+    },
+    [sendSave, setRecord]
+  );
+
+  /** Commit any pending edit immediately (used right before downloading). */
+  const flushSave = useCallback(async () => {
+    if (saveTimerRef.current) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+      const rec = recordRef.current;
+      if (rec) inflightSaveRef.current = sendSave(rec);
+    }
+    if (inflightSaveRef.current) await inflightSaveRef.current;
+  }, [sendSave]);
+
+  const verificationLink = useMemo(() => {
+    if (typeof window === "undefined" || !record) return "";
+    return `${window.location.origin}/#/inquiries/slenquiry?service_num=${encodeURIComponent(record.serviceCode)}&national_id=${encodeURIComponent(record.patientId)}`;
+  }, [record]);
+
+  const copyLink = async () => {
+    if (!verificationLink) return;
+    try {
+      await navigator.clipboard.writeText(verificationLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
+
+  // ── REAL PDF download (no print dialog) ─────────────────────────────────
+
+  const waitForImages = (root: HTMLElement) => {
+    const imgs = Array.from(root.querySelectorAll("img"));
+    return Promise.all(
+      imgs.map((img) =>
+        img.complete
+          ? Promise.resolve()
+          : new Promise<void>((resolve) => {
+              img.addEventListener("load", () => resolve(), { once: true });
+              img.addEventListener("error", () => resolve(), { once: true });
+            })
+      )
+    );
+  };
+
+  const downloadPdf = async () => {
+    const rec = recordRef.current;
+    if (downloading || !rec) return;
+    setDownloadError("");
+    try {
+      setDownloading(true);
+      // Commit any pending edit FIRST so the file always matches the data.
+      await flushSave();
+
+      const node = captureRef.current;
+      if (!node) throw new Error("capture node missing");
+      if (typeof document !== "undefined" && document.fonts) {
+        await document.fonts.ready;
+      }
+      await waitForImages(node);
+
+      const [{ toPng }, { jsPDF }] = await Promise.all([
+        import("html-to-image"),
+        import("jspdf"),
+      ]);
+      const dataUrl = await toPng(node, {
+        pixelRatio: 3, // 794px → 2382px ≈ 200 DPI on A4
+        backgroundColor: "#ffffff",
+      });
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+      pdf.addImage(dataUrl, "PNG", 0, 0, 210, 297, undefined, "FAST");
+      pdf.save(`إجازة مرضية ${rec.serviceCode}.pdf`);
+    } catch {
+      setDownloadError("تعذّر إنشاء الملف، حاول مرة أخرى");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="ops-portal" dir="rtl">
-      {/* Print sheet — lives at body level, only visible while printing */}
-      {typeof document !== "undefined" &&
-        createPortal(
-          <div id="ops-print-root" aria-hidden="true">
-            <SickLeaveDocument data={printData} />
-          </div>,
-          document.body
-        )}
-
       {/* Portal top bar */}
       <div className="ops-topbar">
         <div className="ops-topbar-title">
@@ -493,7 +543,11 @@ export function OpsPortal({
           </span>
           <div>
             <h1>بوابة إصدار الإجازات المرضية</h1>
-            <p>منطقة خاصة بالمشغلين — إصدار، طباعة، وتحقّق فوري للعملاء</p>
+            <p>
+              {mode === "review"
+                ? "صفحة المعاينة والتعديل — كل تعديل يظهر فورًا ويُحفظ تلقائيًا"
+                : "منطقة خاصة بالمشغلين — إدخال ذكي، إصدار، وتحميل فوري"}
+            </p>
           </div>
         </div>
         <button type="button" className="ops-exit-btn" onClick={onExit}>
@@ -501,29 +555,51 @@ export function OpsPortal({
         </button>
       </div>
 
-      {/* ─────────────── Success screen (after issuing) ─────────────── */}
-      {issued ? (
-        <div className="ops-issued">
-          <div className="ops-issued-panel">
-            <div className="ops-issued-check" aria-hidden="true">
-              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </div>
-            <h2>تم إصدار الإجازة المرضية بنجاح</h2>
-            <p className="ops-issued-sub">
-              رمز الخدمة <strong dir="ltr">{issued.serviceCode}</strong> محفوظ الآن في قاعدة الاستعلام العامة —
-              أي عميل يفتح رابط التحقق من الملف ستر له بياناته فورًا.
-            </p>
-
-            <div className="ops-issued-actions">
-              <button type="button" className="ops-btn ops-btn-primary" onClick={printDocument}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M6 9V2h12v7" />
-                  <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                  <rect x="6" y="14" width="12" height="8" />
+      {mode === "review" && record ? (
+        /* ─────────────── صفحة المعاينة والتعديل (Word-like) ─────────────── */
+        <div className="ops-review">
+          <div className="ops-review-toolbar">
+            <div className="ops-review-heading">
+              <span className="ops-review-heading-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
                 </svg>
-                طباعة / حفظ PDF
+              </span>
+              <div>
+                <h2>صفحة المعاينة والتعديل</h2>
+                <span className={`ops-save-state ops-save-state--${saveState}`} role="status">
+                  {saveState === "saving" && <>جارٍ الحفظ…</>}
+                  {saveState === "saved" && <>تم الحفظ ✓</>}
+                  {saveState === "error" && <>تعذّر الحفظ — أعد المحاولة</>}
+                  {saveState === "idle" && <>الحفظ التلقائي مفعّل</>}
+                </span>
+              </div>
+            </div>
+            <div className="ops-review-actions">
+              <button
+                type="button"
+                className="ops-btn ops-btn-primary"
+                onClick={downloadPdf}
+                disabled={downloading}
+              >
+                {downloading ? (
+                  <>
+                    <span className="ops-spinner" aria-hidden="true" />
+                    جارٍ إنشاء الملف…
+                  </>
+                ) : (
+                  <>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    تحميل PDF
+                  </>
+                )}
               </button>
               <button type="button" className="ops-btn ops-btn-ghost" onClick={copyLink}>
                 {copied ? "تم نسخ الرابط ✓" : "نسخ رابط التحقق"}
@@ -532,20 +608,233 @@ export function OpsPortal({
                 إجازة جديدة
               </button>
             </div>
+          </div>
 
-            <div className="ops-issued-link" dir="ltr">
-              <a href={verificationLink} target="_blank" rel="noopener noreferrer">
-                {verificationLink}
-              </a>
+          {saveError && (
+            <p className="ops-form-error" role="alert">{saveError}</p>
+          )}
+          {downloadError && (
+            <p className="ops-form-error" role="alert">{downloadError}</p>
+          )}
+
+          <div className="ops-review-grid">
+            {/* Edit panel — every keystroke updates the document instantly */}
+            <div className="ops-review-edit">
+              <fieldset className="ops-group">
+                <legend>بيانات المريض</legend>
+                <div className="ops-grid">
+                  <Field label="الاسم (عربي)">
+                    <input
+                      className={inputCls}
+                      value={record.patientName}
+                      onChange={(e) => updateRecord("patientName", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="الاسم (إنجليزي)">
+                    <input
+                      className={inputCls}
+                      value={record.patientNameEn}
+                      dir="ltr"
+                      onChange={(e) => updateRecord("patientNameEn", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="رقم الهوية / الإقامة">
+                    <input
+                      className={inputCls}
+                      value={record.patientId}
+                      dir="ltr"
+                      inputMode="numeric"
+                      maxLength={10}
+                      onChange={(e) => updateRecord("patientId", e.target.value.replace(/\D/g, ""))}
+                    />
+                  </Field>
+                  <Field label="الجوال">
+                    <input
+                      className={inputCls}
+                      value={record.patientPhone}
+                      dir="ltr"
+                      inputMode="tel"
+                      onChange={(e) => updateRecord("patientPhone", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="الجنسية">
+                    <input
+                      className={inputCls}
+                      value={record.nationalityAr}
+                      onChange={(e) => updateRecord("nationalityAr", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="الجنسية (إنجليزي)">
+                    <input
+                      className={inputCls}
+                      value={record.nationalityEn}
+                      dir="ltr"
+                      onChange={(e) => updateRecord("nationalityEn", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="جهة العمل">
+                    <input
+                      className={inputCls}
+                      value={record.employerAr}
+                      onChange={(e) => updateRecord("employerAr", e.target.value)}
+                    />
+                  </Field>
+                </div>
+              </fieldset>
+
+              <fieldset className="ops-group">
+                <legend>بيانات الإجازة</legend>
+                <div className="ops-grid">
+                  <Field label="رمز الخدمة" hint="هو المفتاح الذي يستعلم به العميل">
+                    <input
+                      className={inputCls}
+                      value={record.serviceCode}
+                      dir="ltr"
+                      onChange={(e) => updateRecord("serviceCode", e.target.value.toUpperCase())}
+                    />
+                  </Field>
+                  <Field label="تاريخ إصدار التقرير">
+                    <input
+                      className={inputCls}
+                      type="date"
+                      value={record.sickLeaveDateIso}
+                      onChange={(e) => updateRecord("sickLeaveDateIso", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="تبدأ من" hint={record.dateFromHijri ? `هجري: ${record.dateFromHijri}` : undefined}>
+                    <input
+                      className={inputCls}
+                      type="date"
+                      value={record.dateFromIso}
+                      onChange={(e) => updateRecord("dateFromIso", e.target.value)}
+                    />
+                  </Field>
+                  <Field
+                    label="وحتى"
+                    hint={
+                      record.durationDays > 0
+                        ? `هجري: ${record.dateToHijri} — المدة: ${record.durationDays} ${record.durationDays > 1 ? "أيام" : "يوم"}`
+                        : undefined
+                    }
+                  >
+                    <input
+                      className={inputCls}
+                      type="date"
+                      value={record.dateToIso}
+                      onChange={(e) => updateRecord("dateToIso", e.target.value)}
+                    />
+                  </Field>
+                </div>
+              </fieldset>
+
+              <fieldset className="ops-group">
+                <legend>الطبيب والمنشأة</legend>
+                <div className="ops-grid">
+                  <Field label="اسم الطبيب (عربي)">
+                    <input
+                      className={inputCls}
+                      value={record.doctorName}
+                      onChange={(e) => updateRecord("doctorName", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="اسم الطبيب (إنجليزي)">
+                    <input
+                      className={inputCls}
+                      value={record.doctorNameEn}
+                      dir="ltr"
+                      onChange={(e) => updateRecord("doctorNameEn", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="المسمى الوظيفي (عربي)">
+                    <input
+                      className={inputCls}
+                      value={record.doctorJobTitle}
+                      onChange={(e) => updateRecord("doctorJobTitle", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="المسمى الوظيفي (إنجليزي)">
+                    <input
+                      className={inputCls}
+                      value={record.doctorJobTitleEn}
+                      dir="ltr"
+                      onChange={(e) => updateRecord("doctorJobTitleEn", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="المنشأة الصحية (عربي)">
+                    <input
+                      className={inputCls}
+                      value={record.hospital}
+                      onChange={(e) => updateRecord("hospital", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="المنشأة الصحية (إنجليزي)">
+                    <input
+                      className={inputCls}
+                      value={record.hospitalEn}
+                      dir="ltr"
+                      onChange={(e) => updateRecord("hospitalEn", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="رقم الترخيص">
+                    <input
+                      className={inputCls}
+                      value={record.licenseNumber}
+                      dir="ltr"
+                      onChange={(e) => updateRecord("licenseNumber", e.target.value)}
+                    />
+                  </Field>
+                </div>
+              </fieldset>
+
+              <fieldset className="ops-group">
+                <legend>خيارات التقرير</legend>
+                <div className="ops-toggles">
+                  <label className="ops-toggle">
+                    <input
+                      type="checkbox"
+                      checked={record.showLicense}
+                      onChange={(e) => updateRecord("showLicense", e.target.checked)}
+                    />
+                    إظهار رقم الترخيص في التقرير
+                  </label>
+                  <label className="ops-toggle">
+                    <input
+                      type="checkbox"
+                      checked={record.addQr}
+                      onChange={(e) => updateRecord("addQr", e.target.checked)}
+                    />
+                    إضافة رمز QR للتحقق في التقرير
+                  </label>
+                </div>
+              </fieldset>
+
+              <div className="ops-issued-link" dir="ltr">
+                <a href={verificationLink} target="_blank" rel="noopener noreferrer">
+                  {verificationLink}
+                </a>
+              </div>
+            </div>
+
+            {/* The document — updates instantly with every edit */}
+            <div className="ops-review-doc">
+              <div className="ops-preview-frame">
+                <DocumentPreview data={record} />
+              </div>
+              <p className="ops-review-hint">
+                هذه المعاينة هي نفسها الملف الذي سيُحمّل — أي تعديل تكتبه يظهر هنا فورًا ويُحفظ تلقائيًا.
+              </p>
             </div>
           </div>
 
-          <div className="ops-preview-frame ops-preview-frame--lg">
-            <DocumentPreview data={printData} />
+          {/* Hidden FULL-SIZE A4 render used only for the real PDF capture */}
+          <div aria-hidden="true" style={{ position: "fixed", left: "-10000px", top: 0, width: 794 }}>
+            <div ref={captureRef}>
+              <SickLeaveDocument data={record} />
+            </div>
           </div>
         </div>
       ) : (
-        /* ─────────────── Workspace: tabs + form + live preview ─────────────── */
+        /* ─────────────── Workspace: smart input + form ─────────────── */
         <div className="ops-workspace">
           <div className="ops-main">
             {/* Tabs */}
@@ -553,14 +842,14 @@ export function OpsPortal({
               <button
                 type="button"
                 role="tab"
-                aria-selected={tab === "ai"}
-                className={`ops-tab${tab === "ai" ? " active" : ""}`}
-                onClick={() => setTab("ai")}
+                aria-selected={tab === "smart"}
+                className={`ops-tab${tab === "smart" ? " active" : ""}`}
+                onClick={() => setTab("smart")}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2L12 3z" />
                 </svg>
-                الاستخراج الذكي
+                الادخال الذكي
               </button>
               <button
                 type="button"
@@ -579,97 +868,64 @@ export function OpsPortal({
               </button>
             </div>
 
-            {/* AI extraction tab */}
-            {tab === "ai" && (
+            {/* Smart input tab — TEXT ONLY, fills live on every keystroke */}
+            {tab === "smart" && (
               <div className="ops-tabpane">
                 <div className="ops-ai-intro">
-                  <h3>استخراج البيانات تلقائيًا</h3>
+                  <h3>الادخال الذكي</h3>
                   <p>
-                    ألصق رسالة السكرتارية (واتساب) أو نص التقرير، أو ارفع صورة الورقة —
-                    والذكاء الاصطناعي يعبّئ النموذج كاملًا خلال ثوانٍ.
+                    اكتب أو الصق بيانات الإجازة هنا (نص فقط) — يكتب السطر باسم الحقل ثم القيمة،
+                    والنموذج يُعبّى فورًا أثناء الكتابة بدون أي زر.
                   </p>
                 </div>
 
                 <textarea
                   className="ops-ai-textarea"
-                  placeholder={`مثال:\nالاسم: محمد عبدالله السالم\nرقم الهوية: 1023456781\nالجنسية: سعودي\nجهة العمل: جامعة طيبة\nتاريخ الاجازه: 2026-11-20`}
-                  value={aiText}
+                  placeholder={`مثال:\nالاسم: محمد عبدالله السالم\nرقم الهوية: 1023456781\nالجنسية: سعودي\nجهة العمل: جامعة طيبة\nرقم الجوال: 0551234567\nتاريخ الاجازه: 20-11-2026\nالمدة: 3 ايام\nاسم الطبيب: د. خالد بن سعد الحربي`}
+                  value={smartText}
                   dir="rtl"
-                  rows={9}
-                  onChange={(e) => {
-                    setAiText(e.target.value);
-                    if (aiError) setAiError("");
-                  }}
+                  rows={12}
+                  onChange={(e) => onSmartChange(e.target.value)}
                 />
 
-                <div className="ops-ai-divider">
-                  <span>أو</span>
-                </div>
+                {/* Live status */}
+                {smartResult && smartResult.filledCount > 0 && (
+                  <div className="ops-smart-status" role="status">
+                    <div className="ops-smart-status-main">
+                      <span className={`ops-smart-chip${smartResult.isComplete ? " ok" : ""}`}>
+                        {smartResult.isComplete
+                          ? "اكتملت البيانات الأساسية ✓"
+                          : `تم تعبئة ${smartResult.filledCount} حقلًا تلقائيًا`}
+                      </span>
+                      {smartResult.recognizedLabels.length > 0 && (
+                        <span className="ops-smart-tags">
+                          {smartResult.recognizedLabels.map((l) => (
+                            <span key={l} className="ops-smart-tag">{l}</span>
+                          ))}
+                        </span>
+                      )}
+                    </div>
+                    {!smartResult.isComplete && missingLabels(smartResult).length > 0 && (
+                      <p className="ops-smart-missing">
+                        الناقص: {missingLabels(smartResult).join("، ")}
+                      </p>
+                    )}
+                  </div>
+                )}
 
-                <div className="ops-ai-upload">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="sr-only"
-                    onChange={(e) => pickImage(e.target.files?.[0] ?? null)}
-                  />
-                  <button
-                    type="button"
-                    className="ops-btn ops-btn-ghost"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                      <circle cx="8.5" cy="8.5" r="1.5" />
-                      <polyline points="21 15 16 10 5 21" />
-                    </svg>
-                    {aiImage ? "تغيير الصورة" : "رفع صورة الورقة"}
+                {smartText && (
+                  <button type="button" className="ops-btn ops-btn-ghost ops-smart-clear" onClick={() => onSmartChange("")}>
+                    مسح النص
                   </button>
-                  {aiImage && (
-                    <span className="ops-ai-file">
-                      <img src={`data:${aiImage.mime};base64,${aiImage.base64}`} alt="معاينة الصورة المرفوعة" />
-                      {aiImage.name}
-                      <button
-                        type="button"
-                        aria-label="إزالة الصورة"
-                        onClick={() => setAiImage(null)}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  )}
-                </div>
-
-                {aiError && <p className="ops-form-error" role="alert">{aiError}</p>}
-                {aiNotice && <p className="ops-ai-notice" role="status">{aiNotice}</p>}
-
-                <button
-                  type="button"
-                  className="ops-btn ops-btn-primary ops-ai-run"
-                  onClick={runExtraction}
-                  disabled={aiLoading}
-                >
-                  {aiLoading ? (
-                    <>
-                      <span className="ops-spinner ops-spinner--dark" aria-hidden="true" />
-                      جارٍ الاستخراج…
-                    </>
-                  ) : (
-                    <>
-                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2L12 3z" />
-                      </svg>
-                      استخراج وتعبئة النموذج
-                    </>
-                  )}
-                </button>
+                )}
               </div>
             )}
 
             {/* Form tab */}
             {tab === "form" && (
               <div className="ops-tabpane">
+                {autoNotice && <p className="ops-ai-notice" role="status">{autoNotice}</p>}
+
                 <fieldset className="ops-group">
                   <legend>بيانات المريض</legend>
                   <div className="ops-grid">
@@ -902,17 +1158,6 @@ export function OpsPortal({
               </div>
             )}
           </div>
-
-          {/* Live preview (desktop) */}
-          <aside className="ops-preview-side" aria-label="معاينة حية للتقرير">
-            <div className="ops-preview-head">
-              <span className="ops-live-dot" aria-hidden="true" />
-              معاينة حية — تتحدث تلقائيًا أثناء الكتابة
-            </div>
-            <div className="ops-preview-frame">
-              <DocumentPreview data={previewData} />
-            </div>
-          </aside>
         </div>
       )}
 
@@ -988,17 +1233,11 @@ function OpsPortalStyles() {
       }
       .ops-exit-btn:hover { background: rgba(255,255,255,0.14); }
 
-      /* ── Workspace grid ── */
+      /* ── Workspace (single column — no live preview) ── */
       .ops-workspace {
-        display: grid; grid-template-columns: minmax(0, 1fr);
-        gap: 24px; padding: 24px clamp(14px, 3vw, 36px);
-        max-width: 1500px; margin: 0 auto;
+        padding: 24px clamp(14px, 3vw, 36px);
+        max-width: 920px; margin: 0 auto;
       }
-      @media (min-width: 1150px) {
-        .ops-workspace { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); align-items: start; }
-        .ops-preview-side { position: sticky; top: 96px; }
-      }
-
       .ops-main { min-width: 0; }
 
       /* ── Tabs ── */
@@ -1024,36 +1263,39 @@ function OpsPortalStyles() {
         padding: clamp(16px, 2.5vw, 26px);
       }
 
-      /* ── AI tab ── */
+      /* ── Smart input tab ── */
       .ops-ai-intro h3 { margin: 0 0 6px; font-size: 16.5px; color: #101828; font-weight: 700; }
       .ops-ai-intro p { margin: 0 0 14px; font-size: 13.5px; color: #667085; line-height: 1.8; }
       .ops-ai-textarea {
         width: 100%; box-sizing: border-box; border: 1.5px solid #9da4ae; border-radius: 12px;
-        padding: 14px; font-family: inherit; font-size: 14px; line-height: 2; color: #101828;
+        padding: 14px; font-family: inherit; font-size: 14px; line-height: 2.1; color: #101828;
         resize: vertical; background: #fff; outline: none; transition: border-color 0.15s, box-shadow 0.15s;
       }
       .ops-ai-textarea:focus { border-color: #1b8354; box-shadow: 0 0 0 3px rgba(27,131,84,0.14); }
-      .ops-ai-divider {
-        display: flex; align-items: center; gap: 12px; margin: 16px 0;
-        color: #98a2b3; font-size: 12.5px; font-weight: 600;
+
+      .ops-smart-status {
+        margin-top: 14px; padding: 12px 14px; border-radius: 12px;
+        background: #f8faf9; border: 1px solid #e4e9e6;
       }
-      .ops-ai-divider::before, .ops-ai-divider::after {
-        content: ""; height: 1px; background: #e4e9ec; flex: 1;
+      .ops-smart-status-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .ops-smart-chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 6px 12px; border-radius: 999px;
+        background: #ecfdf3; border: 1px solid #abefc6; color: #067647;
+        font-size: 12.5px; font-weight: 700;
       }
-      .ops-ai-upload { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-      .ops-ai-file {
-        display: inline-flex; align-items: center; gap: 8px;
-        background: #f3f8f5; border: 1px solid #cfe5d8; border-radius: 10px;
-        padding: 5px 10px; font-size: 12.5px; color: #0d5c3a; font-weight: 600;
+      .ops-smart-chip.ok { background: #067647; border-color: #067647; color: #fff; }
+      .ops-smart-tags { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+      .ops-smart-tag {
+        padding: 4px 10px; border-radius: 999px;
+        background: #eef4f0; border: 1px solid #d5e5db; color: #0d5c3a;
+        font-size: 11.5px; font-weight: 600;
       }
-      .ops-ai-file img { width: 34px; height: 34px; object-fit: cover; border-radius: 6px; }
-      .ops-ai-file button {
-        border: none; background: #dcefe4; color: #0d5c3a; width: 20px; height: 20px;
-        border-radius: 50%; cursor: pointer; font-size: 14px; line-height: 1;
-      }
-      .ops-ai-run { margin-top: 18px; width: 100%; }
+      .ops-smart-missing { margin: 8px 0 0; font-size: 12.5px; color: #b54708; font-weight: 600; }
+      .ops-smart-clear { margin-top: 12px; }
+
       .ops-ai-notice {
-        margin: 12px 0 0; padding: 10px 14px; border-radius: 10px;
+        margin: 0 0 14px; padding: 10px 14px; border-radius: 10px;
         background: #ecfdf3; border: 1px solid #abefc6; color: #067647;
         font-size: 13px; font-weight: 600;
       }
@@ -1121,63 +1363,20 @@ function OpsPortalStyles() {
         border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
         animation: opsSpin 0.7s linear infinite; display: inline-block;
       }
-      .ops-spinner--dark { border-color: rgba(13,92,58,0.25); border-top-color: #0d5c3a; }
       @keyframes opsSpin { to { transform: rotate(360deg); } }
 
-      /* ── Live preview panel ── */
-      .ops-preview-side { min-width: 0; }
-      .ops-preview-head {
-        display: flex; align-items: center; gap: 8px;
-        font-size: 13px; font-weight: 700; color: #344054;
-        padding: 10px 4px;
-      }
-      .ops-live-dot {
-        width: 9px; height: 9px; border-radius: 50%; background: #12b76a;
-        box-shadow: 0 0 0 0 rgba(18, 183, 106, 0.5);
-        animation: opsPulse 1.8s infinite;
-      }
-      @keyframes opsPulse {
-        0% { box-shadow: 0 0 0 0 rgba(18, 183, 106, 0.45); }
-        70% { box-shadow: 0 0 0 9px rgba(18, 183, 106, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(18, 183, 106, 0); }
-      }
       .ops-preview-frame {
         border-radius: 12px; overflow: hidden;
         box-shadow: 0 8px 28px rgba(16, 24, 40, 0.12);
         background: #fff;
       }
-      .ops-preview-frame--lg { max-width: 560px; margin: 0 auto; }
 
-      .doc-preview-frame { width: 100%; overflow: hidden; }
+      .doc-preview-frame { width: 100%; overflow: hidden; direction: ltr; }
       .doc-preview-scale {
         width: 794px; transform-origin: top left;
         position: relative;
       }
 
-      /* ── Issued success ── */
-      .ops-issued {
-        display: grid; grid-template-columns: 1fr; gap: 24px;
-        padding: 28px clamp(14px, 3vw, 36px);
-        max-width: 1100px; margin: 0 auto;
-      }
-      @media (min-width: 1100px) {
-        .ops-issued { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
-      }
-      .ops-issued-panel {
-        background: #fff; border: 1px solid #e4e9e6; border-radius: 16px;
-        padding: clamp(20px, 3vw, 30px); text-align: center;
-      }
-      .ops-issued-check {
-        width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 50%;
-        background: linear-gradient(135deg, #12b76a, #1b8354); color: #fff;
-        display: flex; align-items: center; justify-content: center;
-        box-shadow: 0 10px 24px rgba(18, 183, 106, 0.35);
-      }
-      .ops-issued-panel h2 { margin: 0 0 10px; font-size: 20px; color: #101828; }
-      .ops-issued-sub { margin: 0 0 20px; font-size: 13.5px; color: #667085; line-height: 1.9; }
-      .ops-issued-actions {
-        display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 18px;
-      }
       .ops-issued-link {
         background: #f8faf9; border: 1px dashed #bfd9cc; border-radius: 10px;
         padding: 10px 12px; font-size: 12px; word-break: break-all;
@@ -1185,15 +1384,62 @@ function OpsPortalStyles() {
       .ops-issued-link a { color: #1b8354; font-weight: 700; text-decoration: none; }
       .ops-issued-link a:hover { text-decoration: underline; }
 
-      /* ── Print: hide the whole app, show only the A4 sheet ── */
-      #ops-print-root { display: none; }
-      @media print {
-        @page { size: A4; margin: 0; }
-        body.ops-printing > *:not(#ops-print-root) { display: none !important; }
-        body.ops-printing #ops-print-root { display: block !important; }
-        body.ops-printing #ops-print-root .sl-doc {
-          width: 794px; height: 1123px; box-shadow: none;
-        }
+      /* ── Review page (صفحة المعاينة والتعديل) — Word-like ── */
+      .ops-review {
+        padding: 20px clamp(14px, 3vw, 36px) 40px;
+        max-width: 1500px; margin: 0 auto;
+      }
+      .ops-review-toolbar {
+        position: sticky; top: 78px; z-index: 40;
+        display: flex; align-items: center; justify-content: space-between; gap: 14px;
+        flex-wrap: wrap;
+        background: #fff; border: 1px solid #e4e9e6; border-radius: 14px;
+        padding: 12px 16px; margin-bottom: 18px;
+        box-shadow: 0 4px 16px rgba(16, 24, 40, 0.06);
+      }
+      .ops-review-heading { display: flex; align-items: center; gap: 12px; min-width: 0; }
+      .ops-review-heading-icon {
+        width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+        background: #e8f5ee; color: #0d5c3a;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .ops-review-heading h2 { margin: 0; font-size: 16.5px; font-weight: 800; color: #101828; }
+      .ops-save-state { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 700; color: #667085; }
+      .ops-save-state--saving { color: #b54708; }
+      .ops-save-state--saved { color: #067647; }
+      .ops-save-state--error { color: #b42318; }
+      .ops-review-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+      .ops-review-actions .ops-btn { padding: 11px 18px; font-size: 13.5px; }
+
+      .ops-review-grid {
+        display: grid; grid-template-columns: 1fr; gap: 22px; align-items: start;
+      }
+      /* Grid items must be allowed to shrink below the 794px sheet,
+         otherwise the single-column (mobile) track expands and overflows. */
+      .ops-review-grid > * { min-width: 0; }
+      @media (min-width: 1100px) {
+        .ops-review-grid { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); }
+        .ops-review-doc { position: sticky; top: 160px; }
+      }
+      /* On mobile the document comes first, the edit panel below */
+      @media (max-width: 1099px) {
+        .ops-review-doc { order: -1; }
+      }
+
+      .ops-review-edit {
+        background: #fff; border: 1px solid #e4e9e6; border-radius: 16px;
+        padding: clamp(16px, 2.5vw, 24px);
+      }
+      .ops-review-edit .ops-issued-link { margin-top: 4px; }
+      .ops-review-hint {
+        margin: 10px 4px 0; font-size: 12px; color: #667085; line-height: 1.8;
+        text-align: center;
+      }
+
+      @media (max-width: 640px) {
+        .ops-review-toolbar { top: 70px; }
+        .ops-review-actions { width: 100%; }
+        .ops-review-actions .ops-btn-primary { flex: 1; }
       }
     `}</style>
   );

@@ -205,3 +205,160 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+type UpdateBody = CreateBody & { id?: string };
+
+/**
+ * PATCH /api/ops/sick-leave
+ *
+ * Commits an edit made on the "صفحة المعاينة والتعديل" (preview & edit page).
+ * The server re-validates the record, re-computes the Hijri dates and the
+ * inclusive duration, and keeps the service code unique — so the document
+ * the customer verifies against always matches the downloaded PDF.
+ *
+ * Requires the X-Access-Code header with the secret portal code.
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    // ---- Gate: access code + rate limit ------------------------------
+    const ip = getClientIp(request.headers);
+    const rl = checkRateLimit(`ops-update:${ip}`, RATE_LIMIT * 4, RATE_WINDOW_MS);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { ok: false, error: "RATE_LIMIT", message: `طلبات كثيرة، أعد المحاولة بعد ${rl.retryAfterSeconds} ثانية` },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } }
+      );
+    }
+
+    const headerCode = request.headers.get("x-access-code");
+    const body = (await request.json().catch(() => ({}))) as UpdateBody;
+    if (!isValidAccessCode(headerCode ?? body.accessCode)) {
+      return NextResponse.json(
+        { ok: false, error: "FORBIDDEN", message: "رمز الدخول غير صالح" },
+        { status: 403 }
+      );
+    }
+
+    const id = str(body.id);
+    if (!id) {
+      return NextResponse.json({ ok: false, error: "VALIDATION", message: "معرّف السجل مطلوب" }, { status: 400 });
+    }
+
+    const existing = await db.sickLeave.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ ok: false, error: "NOT_FOUND", message: "الإجازة غير موجودة" }, { status: 404 });
+    }
+
+    // ---- Validation (same rules as create) ------------------------------
+    const patientName = str(body.patientName);
+    const patientId = str(body.patientId).replace(/\D/g, "");
+    const doctorName = str(body.doctorName);
+    const dateFromIso = str(body.dateFromIso);
+    const dateToIso = str(body.dateToIso);
+
+    if (!patientName) {
+      return NextResponse.json({ ok: false, error: "VALIDATION", message: "اسم المريض مطلوب" }, { status: 400 });
+    }
+    if (!/^\d{10}$/.test(patientId)) {
+      return NextResponse.json({ ok: false, error: "VALIDATION", message: "رقم الهوية يجب أن يكون 10 أرقام" }, { status: 400 });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFromIso) || !/^\d{4}-\d{2}-\d{2}$/.test(dateToIso)) {
+      return NextResponse.json({ ok: false, error: "VALIDATION", message: "تواريخ الإجازة غير صحيحة" }, { status: 400 });
+    }
+    const durationDays = computeDurationDays(dateFromIso, dateToIso);
+    if (durationDays < 1) {
+      return NextResponse.json({ ok: false, error: "VALIDATION", message: "تاريخ النهاية يجب أن يكون بعد تاريخ البداية" }, { status: 400 });
+    }
+    if (!doctorName) {
+      return NextResponse.json({ ok: false, error: "VALIDATION", message: "اسم الطبيب مطلوب" }, { status: 400 });
+    }
+
+    // ---- Service code (editable, must stay unique) ----------------------
+    const serviceCode = (str(body.serviceCode) || existing.serviceCode).toUpperCase().replace(/\s+/g, "");
+    if (serviceCode !== existing.serviceCode) {
+      const clash = await db.sickLeave.findUnique({ where: { serviceCode } });
+      if (clash && clash.id !== existing.id) {
+        return NextResponse.json(
+          { ok: false, error: "DUPLICATE", message: "رمز الخدمة مستخدم مسبقًا في إجازة أخرى" },
+          { status: 409 }
+        );
+      }
+    }
+
+    const issueIso = /^\d{4}-\d{2}-\d{2}$/.test(str(body.sickLeaveDateIso))
+      ? str(body.sickLeaveDateIso)
+      : existing.sickLeaveDate.toISOString().slice(0, 10);
+
+    const dateFromHijri = toHijri(dateFromIso);
+    const dateToHijri = toHijri(dateToIso);
+
+    // ---- Persist (report timestamp stays the ORIGINAL issuance stamp) ----
+    const record = await db.sickLeave.update({
+      where: { id },
+      data: {
+        serviceCode,
+        patientId,
+        patientName,
+        patientNameEn: str(body.patientNameEn) || null,
+        patientPhone: str(body.patientPhone) || null,
+        sickLeaveDate: new Date(`${issueIso}T00:00:00.000Z`),
+        dateFrom: new Date(`${dateFromIso}T00:00:00.000Z`),
+        dateTo: new Date(`${dateToIso}T00:00:00.000Z`),
+        dateFromHijri,
+        dateToHijri,
+        durationDays,
+        doctorName,
+        doctorNameEn: str(body.doctorNameEn) || null,
+        doctorJobTitle: str(body.doctorJobTitle) || "طبيب عام",
+        doctorJobTitleEn: str(body.doctorJobTitleEn) || null,
+        hospital: str(body.hospital) || "المستشفى السعودي الألماني",
+        hospitalEn: str(body.hospitalEn) || "Saudi German Hospital",
+        licenseNumber: str(body.licenseNumber) || null,
+        employerAr: str(body.employerAr) || null,
+        nationalityAr: str(body.nationalityAr) || "السعودية",
+        nationalityEn: str(body.nationalityEn) || "Saudi Arabia",
+        addQr: body.addQr === true,
+        showLicense: body.showLicense !== false,
+      },
+    });
+
+    const payload: PortalSickLeaveRecord = {
+      id: record.id,
+      serviceCode: record.serviceCode,
+      patientId: record.patientId,
+      patientName: record.patientName,
+      patientNameEn: record.patientNameEn ?? "",
+      patientPhone: record.patientPhone ?? "",
+      sickLeaveDateIso: issueIso,
+      dateFromIso,
+      dateToIso,
+      doctorName: record.doctorName,
+      doctorNameEn: record.doctorNameEn ?? "",
+      doctorJobTitle: record.doctorJobTitle,
+      doctorJobTitleEn: record.doctorJobTitleEn ?? "",
+      hospital: record.hospital,
+      hospitalEn: record.hospitalEn ?? "",
+      licenseNumber: record.licenseNumber ?? "",
+      employerAr: record.employerAr ?? "",
+      nationalityAr: record.nationalityAr ?? "",
+      nationalityEn: record.nationalityEn ?? "",
+      addQr: record.addQr,
+      showLicense: record.showLicense,
+      dateFromHijri,
+      dateToHijri,
+      durationDays,
+      reportTime: record.reportTime ?? "",
+      reportDate: record.reportDate ?? "",
+      verificationCode: record.verificationCode,
+      createdAt: record.createdAt.toISOString(),
+    };
+
+    return NextResponse.json({ ok: true, data: payload }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    console.error("ops/sick-leave PATCH error:", error);
+    return NextResponse.json(
+      { ok: false, error: "SERVER_ERROR", message: "تعذّر حفظ التعديلات، حاول مرة أخرى" },
+      { status: 500 }
+    );
+  }
+}
