@@ -20,7 +20,13 @@
  * default template, so a PDF NEVER fails to render.
  */
 
-export type SickLeaveTemplateId = "official";
+export type SickLeaveTemplateId =
+  | "official"
+  | "khalid_sick_leave"
+  | "madina_sick_leave"
+  | "haql_sick_leave"
+  | "kfgh_sick_leave_form"
+  | "ksmc_sick_leave";
 
 export interface SickLeaveTemplateMeta {
   /** Persisted on the record (sick_leaves.template_id). */
@@ -50,6 +56,46 @@ export const SICK_LEAVE_TEMPLATES: SickLeaveTemplateMeta[] = [
       "تقرير إجازة مرضية ثنائي اللغة (عربي / إنجليزي) — الجدول الرسمي بشعار صحة والمملكة، صف المدة الداكن، وتذييل التحقق مع QR ورابط الاستعلام.",
     taglineAr: "تقرير إجازة مرضية — جدول ثنائي اللغة",
     isDefault: true,
+  },
+  {
+    id: "khalid_sick_leave",
+    nameAr: "تقرير بأجازة مرضية (ج) — مجمع خالد المتميز الطبي",
+    nameEn: "Sick Leave Report (C) — Khalid Distinct Medical Center",
+    descriptionAr:
+      "نموذج ورقي بخانات اختيار: بيانات المريض في صفوف ثنائية اللغة، قائمة التوصيات المرقّمة (إجازة، متابعة، إحالة للهيئة الطبية…)، كتلة أطباء بتوقيعات، وتذييل إداري بخيار سعادة المرسل إليه.",
+    taglineAr: "نموذج (ج) — خانات اختيار وتذييل إداري",
+  },
+  {
+    id: "madina_sick_leave",
+    nameAr: "تقرير إجازة مرضية — مستشفى المدينة الوطني",
+    nameEn: "Sick Leave Report — Madina National Hospital",
+    descriptionAr:
+      "ترويسة بثلاثة شعارات، فقرة تمهيدية ثنائية اللغة، ثم عمودان يفصلهما خط رأسي بأقسام معنونة: بيانات المريض، التوصيات، بيانات الطبيب المعالج — وتذييل منصة صحة.",
+    taglineAr: "عمودان بخط فاصل — المدينة الوطني",
+  },
+  {
+    id: "haql_sick_leave",
+    nameAr: "تقرير إجازة مرضية — مستشفى حقل العام",
+    nameEn: "Sick Leave Report — Haql General Hospital",
+    descriptionAr:
+      "عنوان مؤطّر بظل، صندوق بيانات بحواف دائرية، صفوف تواريخ رمادية (دخول/خروج/مراجعة)، توصيات بنقاط فرعية، وثلاث كتل توقيع أسفل الصفحة.",
+    taglineAr: "صندوق دائري وتواريخ رمادية — حقل العام",
+  },
+  {
+    id: "kfgh_sick_leave_form",
+    nameAr: "تقرير إجازة مرضية (نموذج) — مستشفى الملك فهد العام",
+    nameEn: "Sick Leave Form — King Fahad General Hospital",
+    descriptionAr:
+      "ترويسة صورة بعرض الصفحة، صفوف ثنائية اللغة لبيانات المريض، كتلة توصيات ومدة الإجازة، ثلاثة صفوف أطباء بتواقيع وأختام، وحاشية الوثيقة الإلكترونية المسطّرة.",
+    taglineAr: "ترويسة كاملة وأختام — الملك فهد العام",
+  },
+  {
+    id: "ksmc_sick_leave",
+    nameAr: "تقرير إجازة مرضية — مدينة الملك سعود الطبية",
+    nameEn: "Sick Leave Report — King Saud Medical City",
+    descriptionAr:
+      "ترويسة صورة، عنوان مؤطّر في الوسط، قائمة توصيات بخانات اختيار، مربّعات أسماء الأطباء، خطاب إداري ختامي بالختم والتوقيع وملاحظة الاعتماد.",
+    taglineAr: "خطاب إداري وختم رسمي — الملك سعود الطبية",
   },
 ];
 

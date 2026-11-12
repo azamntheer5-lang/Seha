@@ -21,6 +21,11 @@
  */
 
 import { SickLeaveDocument } from "./sick-leave-document";
+import { KhalidSickLeaveDocument } from "./paper/khalid-sick-leave";
+import { MadinaSickLeaveDocument } from "./paper/madina-sick-leave";
+import { HaqlSickLeaveDocument } from "./paper/haql-sick-leave";
+import { KfghSickLeaveFormDocument } from "./paper/kfgh-sick-leave-form";
+import { KsmcSickLeaveDocument } from "./paper/ksmc-sick-leave";
 import { normalizeTemplateId } from "@/lib/seha/templates";
 import type { PortalSickLeaveRecord } from "@/lib/seha/ops";
 
@@ -36,5 +41,17 @@ export function TemplateDocument({
     case "official":
     default:
       return <SickLeaveDocument data={data} />;
+
+    // ── نماذج المستشفيات الورقية (منسوخة عن الحزمة المرجعية) ──
+    case "khalid_sick_leave":
+      return <KhalidSickLeaveDocument data={data} />;
+    case "madina_sick_leave":
+      return <MadinaSickLeaveDocument data={data} />;
+    case "haql_sick_leave":
+      return <HaqlSickLeaveDocument data={data} />;
+    case "kfgh_sick_leave_form":
+      return <KfghSickLeaveFormDocument data={data} />;
+    case "ksmc_sick_leave":
+      return <KsmcSickLeaveDocument data={data} />;
   }
 }
